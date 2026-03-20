@@ -1,6 +1,6 @@
 import { getSession } from './session'
 
-const API_URL = 'http://192.168.1.11:4000'
+const API_URL = "https://polyarticle-backend.onrender.com"
 
 type AuthPayload = {
   email: string

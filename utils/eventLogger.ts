@@ -18,7 +18,7 @@ interface FeedEvent {
 class EventLogger {
   private queue: FeedEvent[] = []
   private MAX_BATCH_SIZE = 5
-  private API_URL = "http://192.168.1.11:4000/events"
+  private API_URL = "https://polyarticle-backend.onrender.com/events"
   private sessionId: string
   private token: string | null = null
 
