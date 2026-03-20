@@ -1,0 +1,31 @@
+{
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.25",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.16.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@xenova/transformers": "^2.17.2",
+    "axios": "^1.13.5",
+    "bcrypt": "^6.0.0",
+    "bullmq": "^5.69.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "ioredis": "^5.9.3",
+    "jsdom": "^28.1.0",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "pg": "^8.18.0",
+    "redis": "^5.10.0",
+    "rss-parser": "^3.13.0"
+  }
+}
