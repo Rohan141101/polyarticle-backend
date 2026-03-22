@@ -1,8 +1,20 @@
 import { Request, Response, NextFunction } from 'express'
-import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabase'
+
+export interface AuthenticatedRequest extends Request {
+  user: {
+    id: string
+    email: string
+    phone?: string
+    location?: string
+    is_email_verified: boolean
+    is_active: boolean
+  }
+  sessionToken: string
+}
 
 export async function requireAuth(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
@@ -15,31 +27,33 @@ export async function requireAuth(
 
     const token = header.replace('Bearer ', '').trim()
 
-    const { data: session } = await supabase
+    const { data: session, error } = await supabaseAdmin
       .from('sessions')
       .select('*, app_users(*)')
       .eq('session_token', token)
       .single()
 
-    if (!session) {
+    if (error || !session) {
       return res.status(401).json({ error: 'Invalid session' })
     }
 
     if (new Date(session.expires_at) < new Date()) {
-      await supabase
+      await supabaseAdmin
         .from('sessions')
         .delete()
         .eq('session_token', token)
-
       return res.status(401).json({ error: 'Session expired' })
     }
 
-    ;(req as any).user = session.app_users
-    ;(req as any).sessionToken = token
+    if (!session.app_users?.is_active) {
+      return res.status(403).json({ error: 'Account is inactive' })
+    }
+
+    req.user = session.app_users
+    req.sessionToken = token
 
     next()
   } catch (err) {
-    console.error('Auth middleware error:', err)
     res.status(500).json({ error: 'Authentication failed' })
   }
 }

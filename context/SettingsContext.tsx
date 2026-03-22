@@ -13,28 +13,38 @@ type SettingsContextType = {
   loaded: boolean
 }
 
+const DEFAULT_SETTINGS: Settings = {
+  darkMode: false,
+  haptics: true,
+}
+
 const SettingsContext = createContext<SettingsContextType | null>(null)
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<Settings>({
-    darkMode: false,
-    haptics: true,
-  })
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     ;(async () => {
-      const stored = await AsyncStorage.getItem('settings')
-      if (stored) {
-        setSettings(JSON.parse(stored))
+      try {
+        const stored = await AsyncStorage.getItem('settings')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          setSettings({ ...DEFAULT_SETTINGS, ...parsed })
+        }
+      } catch {
+        // corrupted storage — fall back to defaults
+      } finally {
+        setLoaded(true)
       }
-      setLoaded(true)
     })()
   }, [])
 
   const persist = async (next: Settings) => {
     setSettings(next)
-    await AsyncStorage.setItem('settings', JSON.stringify(next))
+    try {
+      await AsyncStorage.setItem('settings', JSON.stringify(next))
+    } catch {}
   }
 
   return (
@@ -42,8 +52,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       value={{
         settings,
         loaded,
-        setDarkMode: v => persist({ ...settings, darkMode: v }),
-        setHaptics: v => persist({ ...settings, haptics: v }),
+        // Use functional update to avoid stale closure
+        setDarkMode: (v: boolean) =>
+          setSettings(prev => {
+            const next = { ...prev, darkMode: v }
+            AsyncStorage.setItem('settings', JSON.stringify(next)).catch(() => {})
+            return next
+          }),
+        setHaptics: (v: boolean) =>
+          setSettings(prev => {
+            const next = { ...prev, haptics: v }
+            AsyncStorage.setItem('settings', JSON.stringify(next)).catch(() => {})
+            return next
+          }),
       }}
     >
       {children}

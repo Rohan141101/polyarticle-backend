@@ -11,6 +11,7 @@ type Item = {
   url?: string
   source?: string
   publishedAt?: string
+  type?: 'article' | 'ad'
 }
 
 type Props = {
@@ -51,7 +52,6 @@ export default function SwipeDeck({
     if (!hasNext) return
 
     isTransitioning.current = true
-
     onIndexChange(safeIndex + 1)
 
     setTimeout(() => {
@@ -99,19 +99,19 @@ export default function SwipeDeck({
           key={visible.front.id}
           item={visible.front}
           onLike={() => {
-            onLike?.(visible.front)
+            onLike?.(visible.front!)
             handleNext()
           }}
           onDislike={() => {
-            onDislike?.(visible.front)
+            onDislike?.(visible.front!)
             handleNext()
           }}
           onSave={() => {
-            onSave?.(visible.front)
+            onSave?.(visible.front!)
             handleNext()
           }}
           onOpenDetail={() => {
-            onOpenDetail?.(visible.front)
+            onOpenDetail?.(visible.front!)
           }}
         />
       </View>
@@ -128,35 +128,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: -10,
   },
-
   shadowSlot: {
     position: 'absolute',
     width: '100%',
     height: '100%',
     borderRadius: 28,
     backgroundColor: '#fff',
-
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-
   absoluteCard: {
     position: 'absolute',
     width: '100%',
     height: '100%',
   },
-
   backCard2: {
     zIndex: 0,
   },
-
   backCard1: {
     zIndex: 1,
   },
-
   frontCard: {
     zIndex: 2,
   },

@@ -6,6 +6,7 @@ import {
   Switch,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSettings } from '../context/SettingsContext'
@@ -19,29 +20,52 @@ type Props = {
   onLogout: () => void
 }
 
+type SectionProps = {
+  title: string
+  children: React.ReactNode
+  sub: string
+  card: string
+}
+
+type RowProps = {
+  label: string
+  value?: string
+  action?: boolean
+  text: string
+  sub: string
+}
+
+type ToggleRowProps = {
+  label: string
+  value: boolean
+  onChange: (val: boolean) => void
+  text: string
+}
+
 const LOCATIONS = [
-  "USA",
-  "United Kingdom",
-  "Australia",
-  "New Zealand",
-  "Germany",
-  "France",
-  "Switzerland",
-  "Netherlands",
-  "Spain",
-  "Luxembourg"
+  'USA',
+  'United Kingdom',
+  'Australia',
+  'New Zealand',
+  'Canada',
+  'Singapore',
+  'Germany',
+  'France',
+  'Switzerland',
+  'Netherlands',
+  'Spain',
+  'Luxembourg',
 ]
 
 export default function Profile({ onBack, onSessions, onLogout }: Props) {
   const { settings, setDarkMode, setHaptics } = useSettings()
   const isDark = settings.darkMode
-
   const bg = isDark ? '#000' : '#fff'
   const card = isDark ? '#121212' : '#f5f5f7'
   const text = isDark ? '#fff' : '#000'
   const sub = isDark ? '#aaa' : '#666'
 
-  const [location, setLocationState] = useState("USA")
+  const [location, setLocationState] = useState('USA')
   const [saving, setSaving] = useState(false)
   const [email, setEmail] = useState('')
 
@@ -49,15 +73,10 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
     const loadUser = async () => {
       try {
         const data = await getMe()
-        if (data?.user?.location) {
-          setLocationState(data.user.location)
-        }
-        if (data?.user?.email) {
-          setEmail(data.user.email)
-        }
+        if (data?.user?.location) setLocationState(data.user.location)
+        if (data?.user?.email) setEmail(data.user.email)
       } catch {}
     }
-
     loadUser()
   }, [])
 
@@ -67,10 +86,14 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
       setSaving(true)
       await updateLocation(value)
     } catch {
-      Alert.alert("Error", "Failed to update location")
+      Alert.alert('Error', 'Failed to update location')
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleChangePassword = () => {
+    Alert.alert('Coming Soon', 'Password change will be available in the next update')
   }
 
   return (
@@ -79,9 +102,7 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
         <TouchableOpacity onPress={onBack}>
           <Text style={[styles.back, { color: text }]}>← Back</Text>
         </TouchableOpacity>
-
         <Text style={[styles.title, { color: text }]}>Profile</Text>
-
         <View style={{ width: 40 }} />
       </View>
 
@@ -90,7 +111,9 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
           <Row label="Email" value={email} text={text} sub={sub} />
           <Row label="Phone number" value="Coming soon" text={text} sub={sub} />
           <Row label="Saved articles" value="Coming soon" text={text} sub={sub} />
-          <Row label="Change password" action text={text} sub={sub} />
+          <TouchableOpacity onPress={handleChangePassword}>
+            <Row label="Change password" action text={text} sub={sub} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={onSessions}>
             <Row label="Active sessions" action text={text} sub={sub} />
           </TouchableOpacity>
@@ -113,6 +136,9 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
 
         <Section title="Location" sub={sub} card={card}>
           <View style={{ paddingHorizontal: 18, paddingVertical: 10 }}>
+            {saving && (
+              <ActivityIndicator size="small" color={text} style={{ marginBottom: 8 }} />
+            )}
             <Picker
               selectedValue={location}
               onValueChange={handleLocationChange}
@@ -136,7 +162,7 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
   )
 }
 
-function Section({ title, children, sub, card }: any) {
+function Section({ title, children, sub, card }: SectionProps) {
   return (
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: sub }]}>
@@ -149,23 +175,17 @@ function Section({ title, children, sub, card }: any) {
   )
 }
 
-function Row({ label, value, action, text, sub }: any) {
+function Row({ label, value, action, text, sub }: RowProps) {
   return (
     <TouchableOpacity disabled={!action} style={styles.row}>
       <Text style={{ color: text, fontSize: 15 }}>{label}</Text>
-
-      {value && (
-        <Text style={{ color: sub, fontSize: 14 }}>{value}</Text>
-      )}
-
-      {action && (
-        <Text style={{ color: sub, fontSize: 18 }}>›</Text>
-      )}
+      {value && <Text style={{ color: sub, fontSize: 14 }}>{value}</Text>}
+      {action && <Text style={{ color: sub, fontSize: 18 }}>›</Text>}
     </TouchableOpacity>
   )
 }
 
-function ToggleRow({ label, value, onChange, text }: any) {
+function ToggleRow({ label, value, onChange, text }: ToggleRowProps) {
   return (
     <View style={styles.row}>
       <Text style={{ color: text, fontSize: 15 }}>{label}</Text>
@@ -176,7 +196,6 @@ function ToggleRow({ label, value, onChange, text }: any) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -184,35 +203,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
-
   back: { fontSize: 16 },
-
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-
-  content: {
-    paddingHorizontal: 18,
-    paddingBottom: 60,
-  },
-
-  section: {
-    marginTop: 30,
-  },
-
+  title: { fontSize: 18, fontWeight: '700' },
+  content: { paddingHorizontal: 18, paddingBottom: 60 },
+  section: { marginTop: 30 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 10,
     letterSpacing: 1,
   },
-
-  sectionBox: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-
+  sectionBox: { borderRadius: 16, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -220,22 +221,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 18,
   },
-
-  logoutWrap: {
-    marginTop: 50,
-    alignItems: 'center',
-  },
-
+  logoutWrap: { marginTop: 50, alignItems: 'center' },
   logoutBtn: {
     backgroundColor: '#111',
     paddingVertical: 14,
     paddingHorizontal: 40,
     borderRadius: 12,
   },
-
-  logout: {
-    fontSize: 15,
-    color: '#fff',
-    fontWeight: '600',
-  },
+  logout: { fontSize: 15, color: '#fff', fontWeight: '600' },
 })

@@ -46,7 +46,7 @@ type Props = {
 
 const NATIVE_AD_ID = __DEV__
   ? TestIds.NATIVE
-  : 'ca-app-pub-2345974289373242/5123487942'
+  : (process.env.EXPO_PUBLIC_ADMOB_NATIVE_ID || TestIds.NATIVE)
 
 export default function SwipeCard({
   item,
@@ -75,7 +75,6 @@ export default function SwipeCard({
 
   useEffect(() => {
     if (!isAd) return
-
     NativeAd.createForAdRequest(NATIVE_AD_ID)
       .then(setNativeAd)
       .catch(() => {})

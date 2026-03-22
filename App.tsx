@@ -23,7 +23,7 @@ function Root() {
   const { session, loading, logout } = useAuth()
 
   const [screen, setScreen] = useState<Screen>('login')
-  const [selectedArticle, setSelectedArticle] = useState<any>(null) // ✅ ADDED
+  const [selectedArticle, setSelectedArticle] = useState<any>(null)
 
   if (loading) return null
 
@@ -69,7 +69,6 @@ function Root() {
     )
   }
 
-  // ✅ ARTICLE SCREEN
   if (screen === 'article' && selectedArticle) {
     return (
       <ArticleScreen
@@ -78,8 +77,7 @@ function Root() {
       />
     )
   }
-
-  // ✅ DEFAULT FEED
+  
   return (
     <Feed
       onProfilePress={() => setScreen('profile')}

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import * as AuthService from '../services/auth.service'
+import { AuthenticatedRequest } from '../middleware/auth.middleware'
 
 type SignupBody = {
   email: string
@@ -10,22 +11,26 @@ type SignupBody = {
   interests?: string[]
 }
 
+function safeError(err: unknown): string {
+  if (err instanceof Error) return err.message
+  return 'An unexpected error occurred'
+}
+
 /* ---------- SIGNUP ---------- */
 export async function signup(req: Request, res: Response) {
   try {
-    const {
-      email,
-      password,
-      deviceName,
-      deviceOS,
-      location,
-      interests,
-    } = req.body as SignupBody
-
-    console.log("SIGNUP HIT:", email)
+    const { email, password, deviceName, deviceOS, location, interests } = req.body as SignupBody
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' })
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' })
     }
 
     const data = await AuthService.signup(email, password, {
@@ -36,21 +41,15 @@ export async function signup(req: Request, res: Response) {
       interests,
     })
 
-    console.log("SIGNUP SUCCESS:", email)
-
     res.json(data)
-  } catch (err: any) {
-    console.log("SIGNUP ERROR:", err.message)
-    res.status(400).json({ error: err.message })
+  } catch (err) {
+    res.status(400).json({ error: safeError(err) })
   }
 }
 
-/* ---------- LOGIN ---------- */
 export async function login(req: Request, res: Response) {
   try {
     const { email, password, deviceName, deviceOS } = req.body as SignupBody
-
-    console.log("LOGIN HIT:", email)
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
@@ -62,73 +61,51 @@ export async function login(req: Request, res: Response) {
       ipAddress: req.ip,
     })
 
-    console.log("LOGIN SUCCESS:", email)
-
     res.json(data)
-  } catch (err: any) {
-    console.log("LOGIN ERROR:", err.message)
-    res.status(401).json({ error: err.message })
+  } catch (err) {
+
+    res.status(401).json({ error: 'Invalid email or password' })
   }
 }
 
-/* ---------- ME ---------- */
-export async function me(req: Request, res: Response) {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) return res.status(401).json({ error: 'Unauthorized' })
-
-    const user = await AuthService.validateSession(token)
-
-    res.json({ user })
-  } catch (err: any) {
-    console.log("ME ERROR:", err.message)
-    res.status(401).json({ error: err.message })
-  }
+export async function me(req: AuthenticatedRequest, res: Response) {
+  const user = req.user
+  res.json({ user })
 }
 
-/* ---------- ACTIVE SESSIONS ---------- */
-export async function activeSessions(req: Request, res: Response) {
+export async function activeSessions(req: AuthenticatedRequest, res: Response) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) return res.status(401).json({ error: 'Unauthorized' })
-
-    const user = await AuthService.validateSession(token)
-    const sessions = await AuthService.getActiveSessions(user.id)
-
+    const sessions = await AuthService.getActiveSessions(req.user.id)
     res.json({ sessions })
-  } catch (err: any) {
-    console.log("SESSIONS ERROR:", err.message)
-    res.status(401).json({ error: err.message })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch sessions' })
+  }
+}
+export async function logout(req: AuthenticatedRequest, res: Response) {
+  try {
+    await AuthService.logout(req.sessionToken)
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Logout failed' })
   }
 }
 
-/* ---------- LOGOUT ---------- */
-export async function logout(req: Request, res: Response) {
-  const token = req.headers.authorization?.replace('Bearer ', '')
-  if (!token) return res.status(401).json({ error: 'Unauthorized' })
-
-  await AuthService.logout(token)
-
-  console.log("LOGOUT SUCCESS")
-
-  res.json({ success: true })
+export async function revokeOthers(req: AuthenticatedRequest, res: Response) {
+  try {
+    await AuthService.revokeOtherSessions(req.user.id, req.sessionToken)
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to revoke sessions' })
+  }
 }
 
-/* ---------- REVOKE OTHER SESSIONS ---------- */
-export async function revokeOthers(req: Request, res: Response) {
+export async function revokeSession(req: AuthenticatedRequest, res: Response) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) return res.status(401).json({ error: 'Unauthorized' })
-
-    const user = await AuthService.validateSession(token)
-
-    await AuthService.revokeOtherSessions(user.id, token)
-
-    console.log("REVOKE OTHERS SUCCESS")
-
+    const { sessionId } = req.body
+    if (!sessionId) return res.status(400).json({ error: 'Session ID required' })
+    await AuthService.revokeSessionById(req.user.id, sessionId)
     res.json({ success: true })
-  } catch (err: any) {
-    console.log("REVOKE ERROR:", err.message)
-    res.status(401).json({ error: err.message })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to revoke session' })
   }
 }
