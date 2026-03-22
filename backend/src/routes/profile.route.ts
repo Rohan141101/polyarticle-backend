@@ -5,7 +5,7 @@ import { savePreferences, updateLocation } from '../controllers/profileControlle
 const router = Router()
 const auth = requireAuth as unknown as RequestHandler
 
-router.post('/preferences', auth, savePreferences)
-router.patch('/location', auth, updateLocation)
+router.post('/preferences', auth, savePreferences as unknown as RequestHandler)
+router.patch('/location', auth, updateLocation as unknown as RequestHandler)
 
 export default router
