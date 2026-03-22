@@ -33,6 +33,8 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
+    "@types/express-rate-limit": "^5.1.3",
+    "@types/helmet": "^0.0.48",
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2"
   },
