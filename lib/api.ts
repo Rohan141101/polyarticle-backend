@@ -46,14 +46,41 @@ export async function signup(payload: AuthPayload) {
   return handleJson(res)
 }
 
+/* 🔥 UPDATED LOGIN WITH DEBUG */
 export async function login(payload: AuthPayload) {
-  const res = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+  try {
+    console.log("CALLING LOGIN API")
 
-  return handleJson(res)
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    console.log("STATUS:", res.status)
+
+    const text = await res.text()
+    console.log("RAW RESPONSE:", text)
+
+    if (!text) throw new Error('Empty response')
+
+    const data = JSON.parse(text)
+    console.log("PARSED DATA:", data)
+
+    if (res.status === 401) {
+      throw new Error('UNAUTHORIZED')
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.error || 'Request failed')
+    }
+
+    return data
+
+  } catch (e) {
+    console.log("FETCH ERROR:", e)
+    throw e
+  }
 }
 
 export async function getMe(token?: string) {
