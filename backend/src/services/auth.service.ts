@@ -49,8 +49,10 @@ export async function signup(
     .select()
     .single()
 
+  // ✅ FIX: expose real error
   if (error || !user) {
-    throw new Error('Signup failed — please try again')
+    console.error("❌ SUPABASE USER INSERT ERROR:", error)
+    throw new Error(error?.message || 'User insert failed')
   }
 
   const { error: profileError } = await supabaseAdmin
@@ -62,8 +64,10 @@ export async function signup(
       updated_at: new Date(),
     }])
 
+  // ✅ FIX: don’t silently ignore profile failure
   if (profileError) {
-    console.error('Profile creation failed for user:', user.id)
+    console.error("❌ PROFILE INSERT ERROR:", profileError)
+    throw new Error(profileError.message)
   }
 
   const sessionToken = generateSessionToken()
@@ -80,7 +84,8 @@ export async function signup(
     }])
 
   if (sessionError) {
-    throw new Error('Signup failed — could not create session')
+    console.error("❌ SESSION INSERT ERROR:", sessionError)
+    throw new Error(sessionError.message || 'Session creation failed')
   }
 
   return {
@@ -125,7 +130,8 @@ export async function login(
     }])
 
   if (sessionError) {
-    throw new Error('Login failed — could not create session')
+    console.error("❌ SESSION INSERT ERROR:", sessionError)
+    throw new Error(sessionError.message || 'Login failed — could not create session')
   }
 
   return {
@@ -166,7 +172,7 @@ export async function getActiveSessions(userId: string) {
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
-  if (error) throw new Error('Failed to fetch sessions')
+  if (error) throw new Error(error.message || 'Failed to fetch sessions')
 
   return data
 }
@@ -177,7 +183,7 @@ export async function logout(sessionToken: string) {
     .delete()
     .eq('session_token', sessionToken)
 
-  if (error) throw new Error('Logout failed')
+  if (error) throw new Error(error.message || 'Logout failed')
 }
 
 export async function revokeOtherSessions(
@@ -190,7 +196,7 @@ export async function revokeOtherSessions(
     .eq('user_id', userId)
     .neq('session_token', currentToken)
 
-  if (error) throw new Error('Failed to revoke sessions')
+  if (error) throw new Error(error.message || 'Failed to revoke sessions')
 }
 
 export async function revokeSessionById(userId: string, sessionId: string) {
@@ -199,5 +205,6 @@ export async function revokeSessionById(userId: string, sessionId: string) {
     .delete()
     .eq('id', sessionId)
     .eq('user_id', userId)
-  if (error) throw new Error('Failed to revoke session')
+
+  if (error) throw new Error(error.message || 'Failed to revoke session')
 }

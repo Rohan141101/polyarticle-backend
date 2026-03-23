@@ -36,10 +36,18 @@ export async function signup(req: Request, res: Response) {
       interests,
     })
     res.json(data)
-  } catch (err) {
-    console.error('SIGNUP FAILED:', err)
-    res.status(400).json({ error: safeError(err) })
-  }
+  } catch (err: any) {
+  console.error("💥 FULL SIGNUP ERROR:", err)
+
+  return res.status(400).json({
+    error:
+      err?.message ||
+      err?.details ||
+      err?.hint ||
+      JSON.stringify(err) ||
+      'Signup failed'
+  })
+}
 }
 
 export async function login(req: Request, res: Response) {

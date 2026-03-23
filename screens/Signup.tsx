@@ -78,8 +78,23 @@ export default function Signup({ onLogin, onSignupSuccess }: Props) {
 
   const handleSignup = async () => {
     setError(null)
+
+    // ✅ Added interest validation
+    if (selectedInterests.length === 0) {
+      setError("Select at least one interest")
+      return
+    }
+
     try {
       setLoading(true)
+
+      // ✅ Added logging
+      console.log("🚀 SIGNUP CLICKED", {
+        email,
+        location,
+        interests: selectedInterests,
+      })
+
       const data = await signup({
         email: email.trim().toLowerCase(),
         password,
@@ -88,9 +103,15 @@ export default function Signup({ onLogin, onSignupSuccess }: Props) {
         deviceName: Device.modelName ?? 'Unknown device',
         deviceOS: Device.osName ?? 'Unknown OS',
       }) as SignupResponse
+
+      // ✅ Added response logging
+      console.log("✅ SIGNUP RESPONSE:", data)
+
       await loginSuccess(data.sessionToken)
       onSignupSuccess()
     } catch (err: unknown) {
+      // ✅ Improved error logging
+      console.error("❌ SIGNUP ERROR:", err)
       setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
       setLoading(false)

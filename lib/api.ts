@@ -47,15 +47,30 @@ function fetchWithTimeout(url: string, options: RequestInit, ms = 10000): Promis
 
 async function handleJson<T>(res: Response): Promise<T> {
   const text = await res.text()
+
+  // ✅ Added raw response logging
+  console.log("🌐 RAW RESPONSE:", text)
+
   if (!text) throw new Error('Empty response from server')
+
   let data: ApiResponse<T>
   try {
     data = JSON.parse(text)
   } catch {
     throw new Error('Invalid JSON from server')
   }
+
+  // ✅ Added parsed response logging
+  console.log("🔥 PARSED RESPONSE:", data)
+
   if (res.status === 401) throw new Error('UNAUTHORIZED')
-  if (!res.ok) throw new Error(data?.error || 'Request failed')
+
+  if (!res.ok) {
+    // ✅ Improved error visibility
+    console.error("❌ BACKEND ERROR:", data)
+    throw new Error(data?.error || text || 'Request failed')
+  }
+
   return data as T
 }
 
