@@ -9,25 +9,23 @@ import profileRoutes from './routes/profile.route'
 
 const app = express()
 
-// Security headers
+app.set('trust proxy', 1)
+
 app.use(helmet())
 
-// CORS
 app.use(cors({
-  origin: '*', // tighten this after launch
+  origin: '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
 
-app.use(express.json({ limit: '10kb' })) // prevent large payload attacks
+app.use(express.json({ limit: '10kb' }))
 
-// Routes
 app.use('/auth', authRoutes)
 app.use('/feed', feedRoutes)
 app.use('/news', newsRoutes)
 app.use('/events', eventsRoutes)
 app.use('/profile', profileRoutes)
-
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
@@ -36,7 +34,6 @@ app.use((_req, res) => {
 })
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Unhandled error:', err.message)
   res.status(500).json({ error: 'Internal server error' })
 })
 
