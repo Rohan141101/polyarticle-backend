@@ -49,7 +49,6 @@ export async function signup(
     .select()
     .single()
 
-  // ✅ FIX: expose real error
   if (error || !user) {
     console.error("❌ SUPABASE USER INSERT ERROR:", error)
     throw new Error(error?.message || 'User insert failed')
@@ -64,7 +63,6 @@ export async function signup(
       updated_at: new Date(),
     }])
 
-  // ✅ FIX: don’t silently ignore profile failure
   if (profileError) {
     console.error("❌ PROFILE INSERT ERROR:", profileError)
     throw new Error(profileError.message)
@@ -146,11 +144,25 @@ export async function login(
 }
 
 export async function validateSession(token: string) {
-  const { data: session } = await supabaseAdmin
+  const cleanToken = token?.trim()
+
+  console.log("🔍 TOKEN RECEIVED:", cleanToken)
+
+  const { data, error } = await supabaseAdmin
     .from('sessions')
     .select('*, app_users(*)')
-    .eq('session_token', token)
-    .single()
+    .eq('session_token', cleanToken)
+
+  console.log("🔍 SESSION QUERY RESULT:", data, error)
+
+  if (error) {
+    console.error("❌ SESSION FETCH ERROR:", error)
+    throw new Error('Invalid session')
+  }
+
+  const session = data?.[0]
+
+  if (!session) throw new Error('Invalid session')
 
   if (!session) throw new Error('Invalid session')
 
@@ -158,7 +170,7 @@ export async function validateSession(token: string) {
     await supabaseAdmin
       .from('sessions')
       .delete()
-      .eq('session_token', token)
+      .eq('session_token', cleanToken)
     throw new Error('Session expired')
   }
 
@@ -178,10 +190,12 @@ export async function getActiveSessions(userId: string) {
 }
 
 export async function logout(sessionToken: string) {
+  const cleanToken = sessionToken?.trim()
+
   const { error } = await supabaseAdmin
     .from('sessions')
     .delete()
-    .eq('session_token', sessionToken)
+    .eq('session_token', cleanToken)
 
   if (error) throw new Error(error.message || 'Logout failed')
 }
@@ -190,11 +204,13 @@ export async function revokeOtherSessions(
   userId: string,
   currentToken: string
 ) {
+  const cleanToken = currentToken?.trim()
+
   const { error } = await supabaseAdmin
     .from('sessions')
     .delete()
     .eq('user_id', userId)
-    .neq('session_token', currentToken)
+    .neq('session_token', cleanToken)
 
   if (error) throw new Error(error.message || 'Failed to revoke sessions')
 }

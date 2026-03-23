@@ -7,7 +7,8 @@ export async function saveSession(token: string) {
 }
 
 export async function getSession() {
-  return SecureStore.getItemAsync(SESSION_KEY)
+  const token = await SecureStore.getItemAsync(SESSION_KEY)
+  return token?.trim() ?? null
 }
 
 export async function clearSession() {
