@@ -38,7 +38,6 @@ type User = {
   is_active: boolean
 }
 
-// Timeout wrapper — fails after 10 seconds
 function fetchWithTimeout(url: string, options: RequestInit, ms = 10000): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
@@ -48,19 +47,15 @@ function fetchWithTimeout(url: string, options: RequestInit, ms = 10000): Promis
 
 async function handleJson<T>(res: Response): Promise<T> {
   const text = await res.text()
-
   if (!text) throw new Error('Empty response from server')
-
   let data: ApiResponse<T>
   try {
     data = JSON.parse(text)
   } catch {
     throw new Error('Invalid JSON from server')
   }
-
   if (res.status === 401) throw new Error('UNAUTHORIZED')
   if (!res.ok) throw new Error(data?.error || 'Request failed')
-
   return data as T
 }
 
@@ -69,7 +64,7 @@ export async function signup(payload: AuthPayload) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  })
+  }, 30000)
   return handleJson(res)
 }
 
@@ -78,7 +73,7 @@ export async function login(payload: AuthPayload) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  })
+  }, 30000)
   return handleJson(res)
 }
 
@@ -138,14 +133,11 @@ export async function fetchNews(
   const token = await getSession()
   const selectedCategory = category || 'For You'
   const url = `${API_URL}/news?category=${encodeURIComponent(selectedCategory)}&page=${page}&limit=${limit}&fresh=${fresh}`
-
   const res = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
-
   const response = await handleJson<{ data: Article[] }>(res)
   const articlesArray = response?.data || []
-
   return articlesArray.map((article: Article) => ({
     id: article.id,
     title: article.title,
@@ -165,10 +157,8 @@ export async function fetchRegionalNews(limit: number = 10): Promise<Article[]> 
   const res = await fetchWithTimeout(`${API_URL}/news/regional?limit=${limit}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-
   const response = await handleJson<{ data: Article[] }>(res)
   const articlesArray = response?.data || []
-
   return articlesArray.map((article: Article) => ({
     id: article.id,
     title: article.title,
