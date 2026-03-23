@@ -93,9 +93,17 @@ router.get('/', auth, async (req: Request, res: Response) => {
       count: news.length,
       data: news
     })
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch news' })
-  }
+  } catch (err: any) {
+  console.error("❌ NEWS ERROR:", err)
+
+  return res.status(500).json({
+    error:
+      err?.message ||
+      err?.detail ||
+      JSON.stringify(err) ||
+      'Failed to fetch news'
+  })
+}
 })
 
 router.get('/health', (_req: Request, res: Response) => {
