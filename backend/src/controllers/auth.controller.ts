@@ -16,23 +16,18 @@ function safeError(err: unknown): string {
   return 'An unexpected error occurred'
 }
 
-/* ---------- SIGNUP ---------- */
 export async function signup(req: Request, res: Response) {
   try {
     const { email, password, deviceName, deviceOS, location, interests } = req.body as SignupBody
-
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email format' })
     }
-
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' })
     }
-
     const data = await AuthService.signup(email, password, {
       deviceName,
       deviceOS,
@@ -40,9 +35,9 @@ export async function signup(req: Request, res: Response) {
       location,
       interests,
     })
-
     res.json(data)
   } catch (err) {
+    console.error('SIGNUP FAILED:', err)
     res.status(400).json({ error: safeError(err) })
   }
 }
@@ -50,20 +45,17 @@ export async function signup(req: Request, res: Response) {
 export async function login(req: Request, res: Response) {
   try {
     const { email, password, deviceName, deviceOS } = req.body as SignupBody
-
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
-
     const data = await AuthService.login(email, password, {
       deviceName,
       deviceOS,
       ipAddress: req.ip,
     })
-
     res.json(data)
   } catch (err) {
-
+    console.error('LOGIN FAILED:', err)
     res.status(401).json({ error: 'Invalid email or password' })
   }
 }
@@ -81,6 +73,7 @@ export async function activeSessions(req: AuthenticatedRequest, res: Response) {
     res.status(500).json({ error: 'Failed to fetch sessions' })
   }
 }
+
 export async function logout(req: AuthenticatedRequest, res: Response) {
   try {
     await AuthService.logout(req.sessionToken)
