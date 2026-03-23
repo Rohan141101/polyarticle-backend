@@ -16,3 +16,5 @@ export const pool = new Pool({
     rejectUnauthorized: false,
   },
 })
+
+console.log('✅ DATABASE_URL loaded:', process.env.DATABASE_URL?.substring(0, 50))
