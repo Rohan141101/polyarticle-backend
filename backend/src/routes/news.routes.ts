@@ -22,8 +22,16 @@ router.get('/admin/rss-ingest', auth, requireAdmin, async (_req: Request, res: R
   try {
     const result = await ingestRSSFeeds()
     return res.json(result)
-  } catch (err) {
-    return res.status(500).json({ error: 'RSS ingestion failed' })
+  } catch (err: any) {
+    console.error("❌ RSS INGEST ERROR:", err)
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        err?.detail ||
+        JSON.stringify(err) ||
+        'RSS ingestion failed'
+    })
   }
 })
 
@@ -31,8 +39,16 @@ router.get('/admin/repair-images', auth, requireAdmin, async (_req: Request, res
   try {
     const result = await repairMissingImages()
     return res.json(result)
-  } catch (err) {
-    return res.status(500).json({ error: 'Image repair failed' })
+  } catch (err: any) {
+    console.error("❌ IMAGE REPAIR ERROR:", err)
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        err?.detail ||
+        JSON.stringify(err) ||
+        'Image repair failed'
+    })
   }
 })
 
@@ -56,8 +72,16 @@ router.get('/admin/backfill-categories', auth, requireAdmin, async (_req: Reques
     }
 
     return res.json({ success: true, processed: articles.length, updated })
-  } catch (err) {
-    return res.status(500).json({ error: 'Backfill failed' })
+  } catch (err: any) {
+    console.error("❌ BACKFILL ERROR:", err)
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        err?.detail ||
+        JSON.stringify(err) ||
+        'Backfill failed'
+    })
   }
 })
 
@@ -65,12 +89,22 @@ router.get('/regional', auth, async (req: Request, res: Response) => {
   try {
     const { user } = req as AuthenticatedRequest
     let news = await getRegionalNews(user.id, 10)
+
     if (!news.length) {
       news = await getNews(user.id, 1, 10, 'World')
     }
+
     return res.json({ success: true, count: news.length, data: news })
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch regional news' })
+  } catch (err: any) {
+    console.error("❌ REGIONAL NEWS ERROR:", err)
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        err?.detail ||
+        JSON.stringify(err) ||
+        'Failed to fetch regional news'
+    })
   }
 })
 
@@ -94,16 +128,16 @@ router.get('/', auth, async (req: Request, res: Response) => {
       data: news
     })
   } catch (err: any) {
-  console.error("❌ NEWS ERROR:", err)
+    console.error("❌ NEWS ERROR:", err)
 
-  return res.status(500).json({
-    error:
-      err?.message ||
-      err?.detail ||
-      JSON.stringify(err) ||
-      'Failed to fetch news'
-  })
-}
+    return res.status(500).json({
+      error:
+        err?.message ||
+        err?.detail ||
+        JSON.stringify(err) ||
+        'Failed to fetch news'
+    })
+  }
 })
 
 router.get('/health', (_req: Request, res: Response) => {
