@@ -1,12 +1,28 @@
 import { Response } from 'express'
 import { pool } from '../db'
 import { AuthenticatedRequest } from '../middleware/auth.middleware'
+import { logger } from '../utils/logger'
 
 const DECAY_FACTOR = 0.98
 
+const isDev = process.env.NODE_ENV !== 'production'
+
+const log = (...args: any[]) => {
+  if (isDev) logger.log(...args)
+}
+
+const errorLog = (...args: any[]) => {
+  logger.error(...args)
+}
+
 const VALID_EVENT_TYPES = new Set([
-  'impression', 'swipe_left', 'swipe_right',
-  'save', 'hide', 'share', 'open_detail'
+  'impression',
+  'swipe_left',
+  'swipe_right',
+  'save',
+  'hide',
+  'share',
+  'open_detail',
 ])
 
 type FeedEvent = {
@@ -26,9 +42,12 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'Invalid events payload' })
     }
 
-    // Filter valid events upfront
     const validEvents: FeedEvent[] = events.filter(
-      e => e.content_id && e.event_type && VALID_EVENT_TYPES.has(e.event_type)
+      e =>
+        e &&
+        e.content_id &&
+        e.event_type &&
+        VALID_EVENT_TYPES.has(e.event_type)
     )
 
     if (!validEvents.length) {
@@ -38,7 +57,12 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
     const values: unknown[] = []
     const placeholders = validEvents.map((e, i) => {
       const base = i * 4
-      values.push(userId, e.content_id, e.event_type, e.dwell_time_ms || null)
+      values.push(
+        userId,
+        e.content_id,
+        e.event_type,
+        e.dwell_time_ms ?? null
+      )
       return `($${base + 1}, $${base + 2}, $${base + 3}, NOW(), $${base + 4})`
     })
 
@@ -47,8 +71,13 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
        VALUES ${placeholders.join(', ')}`,
       values
     )
+
+    log(`✅ Inserted ${validEvents.length} events for user: ${userId}`)
+
     const swipeEvents = validEvents.filter(
-      e => e.event_type === 'swipe_right' || e.event_type === 'swipe_left'
+      e =>
+        e.event_type === 'swipe_right' ||
+        e.event_type === 'swipe_left'
     )
 
     if (!swipeEvents.length) {
@@ -67,16 +96,25 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
     let userVector: number[] = userResult.rows[0].user_vector
 
     const contentIds = swipeEvents.map(e => e.content_id)
+
     const articlesResult = await pool.query(
       `SELECT id, embedding FROM articles WHERE id = ANY($1) AND embedding IS NOT NULL`,
       [contentIds]
     )
 
-    const embeddingMap = new Map<string, number[]>()
-    for (const row of articlesResult.rows) {
-      embeddingMap.set(row.id, row.embedding)
+    if (!articlesResult.rows.length) {
+      return res.json({ success: true })
     }
 
+    const embeddingMap = new Map<string, number[]>()
+
+    for (const row of articlesResult.rows) {
+      if (row.embedding && Array.isArray(row.embedding)) {
+        embeddingMap.set(row.id, row.embedding)
+      }
+    }
+
+    // ✅ Update vector
     for (const event of swipeEvents) {
       const articleEmbedding = embeddingMap.get(event.content_id)
       if (!articleEmbedding) continue
@@ -93,14 +131,22 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
       const weight = baseWeight * dwellBoost
 
       userVector = userVector.map(
-        (val, i) => val * DECAY_FACTOR + articleEmbedding[i] * weight
+        (val, i) =>
+          val * DECAY_FACTOR +
+          (articleEmbedding[i] || 0) * weight
       )
     }
 
-    const norm = Math.sqrt(userVector.reduce((sum, val) => sum + val * val, 0))
-    const normalizedVector = norm > 0 ? userVector.map(val => val / norm) : userVector
+    const norm = Math.sqrt(
+      userVector.reduce((sum, val) => sum + val * val, 0)
+    )
 
-    await pool.query(
+    const normalizedVector =
+      norm > 0
+        ? userVector.map(val => val / norm)
+        : userVector
+
+        await pool.query(
       `UPDATE user_profiles
        SET user_vector = $1, updated_at = NOW()
        WHERE user_id = $2`,
@@ -108,7 +154,8 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
     )
 
     return res.json({ success: true })
-  } catch {
+  } catch (err) {
+    errorLog('❌ EVENT CONTROLLER ERROR:', err)
     return res.status(500).json({ error: 'Server error' })
   }
 }

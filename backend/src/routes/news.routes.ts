@@ -1,6 +1,6 @@
 import { Router, Request, Response, RequestHandler, NextFunction } from 'express'
 import { getNews, getRegionalNews } from '../services/news.service'
-import { ingestRSSFeeds } from '../services/rssIngest.service'
+import { ingestRSSFeeds, testRSSFeeds } from '../services/rssIngest.service'
 import { repairMissingImages } from '../services/imageRepair.service'
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.middleware'
 import { inferCategory } from '../services/category.service'
@@ -18,7 +18,28 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next()
 }
 
-router.get('/admin/rss-ingest', auth, requireAdmin, async (_req: Request, res: Response) => {
+/* ===================== ADMIN TEST ROUTES (NO AUTH FOR LOCAL) ===================== */
+
+// ✅ TEST RSS FEEDS (image check)
+router.get('/admin/test-feeds', async (_req: Request, res: Response) => {
+  try {
+    await testRSSFeeds()
+    return res.json({ success: true })
+  } catch (err: any) {
+    console.error("❌ TEST FEEDS ERROR:", err)
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        err?.detail ||
+        JSON.stringify(err) ||
+        'Test feeds failed'
+    })
+  }
+})
+
+// ✅ INGEST RSS (no auth for now)
+router.get('/admin/rss-ingest', async (_req: Request, res: Response) => {
   try {
     const result = await ingestRSSFeeds()
     return res.json(result)
@@ -34,6 +55,8 @@ router.get('/admin/rss-ingest', auth, requireAdmin, async (_req: Request, res: R
     })
   }
 })
+
+/* ===================== ADMIN (PROTECTED) ===================== */
 
 router.get('/admin/repair-images', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
@@ -59,15 +82,18 @@ router.get('/admin/backfill-categories', auth, requireAdmin, async (_req: Reques
       FROM articles
       WHERE category IS NULL
     `)
+
     const articles = result.rows
     let updated = 0
 
     for (const article of articles) {
       const category = inferCategory(article)
+
       await pool.query(
         `UPDATE articles SET category = $1 WHERE id = $2`,
         [category, article.id]
       )
+
       updated++
     }
 
@@ -85,9 +111,12 @@ router.get('/admin/backfill-categories', auth, requireAdmin, async (_req: Reques
   }
 })
 
+/* ===================== USER FEED ===================== */
+
 router.get('/regional', auth, async (req: Request, res: Response) => {
   try {
     const { user } = req as AuthenticatedRequest
+
     let news = await getRegionalNews(user.id, 10)
 
     if (!news.length) {
@@ -111,6 +140,7 @@ router.get('/regional', auth, async (req: Request, res: Response) => {
 router.get('/', auth, async (req: Request, res: Response) => {
   try {
     const { user } = req as AuthenticatedRequest
+
     const page = Math.max(1, parseInt(req.query.page as string) || 1)
     const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 10), 20)
     const category = req.query.category as string | undefined
@@ -140,8 +170,14 @@ router.get('/', auth, async (req: Request, res: Response) => {
   }
 })
 
+/* ===================== HEALTH ===================== */
+
 router.get('/health', (_req: Request, res: Response) => {
-  return res.json({ status: 'ok', service: 'news', timestamp: new Date().toISOString() })
+  return res.json({
+    status: 'ok',
+    service: 'news',
+    timestamp: new Date().toISOString()
+  })
 })
 
 export default router

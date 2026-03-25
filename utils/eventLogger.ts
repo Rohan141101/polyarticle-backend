@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger'
+
 type EventType =
   | 'impression'
   | 'swipe_left'
@@ -18,40 +20,65 @@ interface FeedEvent {
 class EventLogger {
   private queue: FeedEvent[] = []
   private MAX_BATCH_SIZE = 5
-  private API_URL = 'https://polyarticle-backend.onrender.com/events'
+  private FLUSH_INTERVAL = 5000
+  private API_URL = "https://polyarticle-backend.onrender.com/events"
   private sessionId: string
   private token: string | null = null
+  private isFlushing = false
+  private flushTimer: ReturnType<typeof setInterval> | null = null
 
   constructor() {
     this.sessionId = this.generateSessionId()
+    this.startAutoFlush()
   }
 
   private generateSessionId(): string {
     return Date.now().toString(36) + Math.random().toString(36).substring(2, 10)
   }
 
-  // Accepts null so logout can clear the token
+  private startAutoFlush() {
+    if (this.flushTimer) return
+
+    this.flushTimer = setInterval(() => {
+      this.flush()
+    }, this.FLUSH_INTERVAL)
+  }
+
   setToken(token: string | null) {
     this.token = token
+
     if (!token) {
-      // Clear queue on logout — don't send events for logged out user
       this.queue = []
       this.sessionId = this.generateSessionId()
     }
   }
 
   log(event: FeedEvent) {
+    if (!event.content_id || !event.event_type) return
+
+    if (
+      event.event_type === 'impression' &&
+      event.dwell_time_ms !== undefined &&
+      event.dwell_time_ms !== null &&
+      event.dwell_time_ms < 300
+    ) {
+      return
+    }
+
     this.queue.push(event)
+
     if (this.queue.length >= this.MAX_BATCH_SIZE) {
       this.flush()
     }
   }
 
   async flush() {
+    if (this.isFlushing) return
     if (this.queue.length === 0) return
     if (!this.token) return
 
-    // Snapshot and clear queue immediately — prevent duplicate sends
+    this.isFlushing = true
+
     const batch = [...this.queue]
     this.queue = []
 
@@ -75,12 +102,14 @@ class EventLogger {
       clearTimeout(timer)
 
       if (!response.ok) {
-        // Re-queue failed events
         this.queue = [...batch, ...this.queue]
+        logger.error('Event API failed')
       }
     } catch {
-      // Re-queue on network error
       this.queue = [...batch, ...this.queue]
+      logger.error('Event network error')
+    } finally {
+      this.isFlushing = false
     }
   }
 

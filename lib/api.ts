@@ -48,9 +48,6 @@ function fetchWithTimeout(url: string, options: RequestInit, ms = 10000): Promis
 async function handleJson<T>(res: Response): Promise<T> {
   const text = await res.text()
 
-  // ✅ Added raw response logging
-  console.log("🌐 RAW RESPONSE:", text)
-
   if (!text) throw new Error('Empty response from server')
 
   let data: ApiResponse<T>
@@ -60,14 +57,9 @@ async function handleJson<T>(res: Response): Promise<T> {
     throw new Error('Invalid JSON from server')
   }
 
-  // ✅ Added parsed response logging
-  console.log("🔥 PARSED RESPONSE:", data)
-
   if (res.status === 401) throw new Error('UNAUTHORIZED')
 
   if (!res.ok) {
-    // ✅ Improved error visibility
-    console.error("❌ BACKEND ERROR:", data)
     throw new Error(data?.error || text || 'Request failed')
   }
 
@@ -147,45 +139,52 @@ export async function fetchNews(
 ): Promise<Article[]> {
   const token = await getSession()
   const selectedCategory = category || 'For You'
+
   const url = `${API_URL}/news?category=${encodeURIComponent(selectedCategory)}&page=${page}&limit=${limit}&fresh=${fresh}`
+
   const res = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  const response = await handleJson<{ data: Article[] }>(res)
+
+  const response = await handleJson<{ data: any[] }>(res)
   const articlesArray = response?.data || []
-  return articlesArray.map((article: Article) => ({
-    id: article.id,
-    title: article.title,
-    summary: article.summary,
-    image: article.image
-      ? String(article.image).replace(/&amp;/g, '&')
+
+  return articlesArray.map((a: any) => ({
+    id: a.id,
+    title: a.title,
+    summary: a.summary,
+    image: a.image_url
+      ? String(a.image_url).replace(/&amp;/g, '&')
       : undefined,
-    url: article.url,
-    source: article.source || '',
-    publishedAt: article.publishedAt || undefined,
-    category: article.category || undefined,
+    url: a.url,
+    source: a.source || '',
+    publishedAt: a.published_at || undefined,
+    category: a.category || undefined,
   }))
 }
 
 export async function fetchRegionalNews(limit: number = 10): Promise<Article[]> {
   const token = await getSession()
+
   const res = await fetchWithTimeout(`${API_URL}/news/regional?limit=${limit}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  const response = await handleJson<{ data: Article[] }>(res)
+
+  const response = await handleJson<{ data: any[] }>(res)
   const articlesArray = response?.data || []
-  return articlesArray.map((article: Article) => ({
-    id: article.id,
-    title: article.title,
-    summary: article.summary,
-    image: article.image
-      ? String(article.image).replace(/&amp;/g, '&')
+
+  return articlesArray.map((a: any) => ({
+    id: a.id,
+    title: a.title,
+    summary: a.summary,
+    image: a.image_url
+      ? String(a.image_url).replace(/&amp;/g, '&')
       : undefined,
-    url: article.url,
-    source: article.source || '',
-    publishedAt: article.publishedAt || undefined,
-    category: article.category || undefined,
-    country: article.country || undefined,
+    url: a.url,
+    source: a.source || '',
+    publishedAt: a.published_at || undefined,
+    category: a.category || undefined,
+    country: a.country || undefined,
   }))
 }
 

@@ -63,9 +63,6 @@ type AdItem = {
   type: 'ad'
   title: string
   summary: string
-  image?: string
-  url?: string
-  sponsor?: string
 }
 
 type FeedItem = (Article & { type: 'article' }) | AdItem
@@ -74,9 +71,11 @@ function insertAds(articles: Article[]): FeedItem[] {
   const result: FeedItem[] = []
   let count = 0
   let nextAd = 3
+
   for (const article of articles) {
     result.push({ ...article, type: 'article' })
     count++
+
     if (count === nextAd) {
       result.push({
         id: `ad-${count}`,
@@ -87,6 +86,7 @@ function insertAds(articles: Article[]): FeedItem[] {
       nextAd += 5
     }
   }
+
   return result
 }
 
@@ -97,6 +97,7 @@ type Props = {
 
 export default function Feed({ onProfilePress, onOpenArticle }: Props) {
   const { settings } = useSettings()
+
   const [activeCategory, setActiveCategory] = useState('For You')
   const [articles, setArticles] = useState<FeedItem[]>([])
   const [page, setPage] = useState(1)
@@ -109,6 +110,7 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
   const swipeCountRef = useRef(0)
   const lastAdTimeRef = useRef(0)
   const interstitialLoaded = useRef(false)
+
   const dwellStartRef = useRef<number | null>(null)
   const loadingMoreRef = useRef(false)
 
@@ -123,14 +125,18 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
 
   useEffect(() => {
     mobileAds().initialize()
+
     const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
       interstitialLoaded.current = true
     })
+
     const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       interstitialLoaded.current = false
       interstitial.load()
     })
+
     interstitial.load()
+
     return () => {
       unsubscribeLoaded()
       unsubscribeClosed()
@@ -156,12 +162,14 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
       setError(null)
       setPage(1)
       setCurrentIndex(0)
+
       let response
       if (activeCategory === 'Regional') {
         response = await fetchRegionalNews(20)
       } else {
         response = await fetchNews(activeCategory, 1, 20)
       }
+
       const fetched = Array.isArray(response) ? response : []
       setArticles(insertAds(fetched))
     } catch {
@@ -176,12 +184,14 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
       setRefreshing(true)
       setError(null)
       setCurrentIndex(0)
+
       let response
       if (activeCategory === 'Regional') {
         response = await fetchRegionalNews(20)
       } else {
         response = await fetchNews(activeCategory, 1, 20, true)
       }
+
       const fetched = Array.isArray(response) ? response : []
       setArticles(insertAds(fetched))
       setPage(1)
@@ -194,17 +204,19 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
 
   const loadMore = useCallback(async () => {
     if (loadingMoreRef.current || activeCategory === 'Regional') return
+
     try {
       loadingMoreRef.current = true
       setLoadingMore(true)
+
       const nextPage = page + 1
       const response = await fetchNews(activeCategory, nextPage, 20)
       const fetched = Array.isArray(response) ? response : []
+
       if (fetched.length > 0) {
         setArticles((prev) => [...prev, ...insertAds(fetched)])
         setPage(nextPage)
       }
-    } catch {
     } finally {
       loadingMoreRef.current = false
       setLoadingMore(false)
@@ -221,10 +233,27 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
     }
   }, [currentIndex, articles.length, loadMore])
 
+  // ✅ FIXED DWELL TRACKING
   useEffect(() => {
+    if (dwellStartRef.current !== null && articles[currentIndex - 1]) {
+      const prev = articles[currentIndex - 1]
+
+      if (prev.type !== 'ad') {
+        const dwell = Date.now() - dwellStartRef.current
+
+        eventLogger.log({
+          content_id: prev.id,
+          event_type: 'impression',
+          dwell_time_ms: dwell,
+        })
+      }
+    }
+
     const current = articles[currentIndex]
+
     if (current) {
       dwellStartRef.current = Date.now()
+
       if (current.type !== 'ad') {
         eventLogger.log({
           content_id: current.id,
@@ -238,7 +267,12 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
   const handleSwipe = (type: 'swipe_left' | 'swipe_right', article: FeedItem) => {
     swipeCountRef.current++
     maybeShowInterstitial()
-    const dwellTime = dwellStartRef.current ? Date.now() - dwellStartRef.current : null
+
+    const dwellTime =
+      dwellStartRef.current !== null
+        ? Date.now() - dwellStartRef.current
+        : null
+
     if (article.type !== 'ad') {
       eventLogger.log({
         content_id: article.id,
@@ -270,7 +304,11 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
             </TouchableOpacity>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillContainer}
+          >
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
                 key={cat}
@@ -280,7 +318,13 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
                   { backgroundColor: cat === activeCategory ? pillActiveBg : pillInactiveBg },
                 ]}
               >
-                <Text style={{ color: cat === activeCategory ? pillActiveText : pillInactiveText }}>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.pillText,
+                    { color: cat === activeCategory ? pillActiveText : pillInactiveText },
+                  ]}
+                >
                   {cat}
                 </Text>
               </TouchableOpacity>
@@ -301,20 +345,13 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
                   onIndexChange={setCurrentIndex}
                   onLike={(a: any) => handleSwipe('swipe_right', a)}
                   onDislike={(a: any) => handleSwipe('swipe_left', a)}
-                  onSave={(a: any) => {
-                    if (a?.type !== 'ad') {
-                      eventLogger.log({ content_id: a.id, event_type: 'save' })
-                    }
-                  }}
                   onOpenDetail={(a: any) => {
                     if (a?.type === 'ad') return
                     onOpenArticle(a)
                   }}
                 />
               )}
-              {loadingMore && (
-                <ActivityIndicator style={{ marginTop: 10 }} color={text} />
-              )}
+              {loadingMore && <ActivityIndicator style={{ marginTop: 10 }} color={text} />}
             </View>
           )}
         </ScrollView>
@@ -329,19 +366,44 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 16,
   },
-  logo: { fontSize: 22, fontWeight: 'bold' },
-  avatar: { width: 34, height: 34, borderRadius: 17 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    margin: 8,
+
+  logo: {
+    fontSize: 22,
+    fontWeight: 'bold',
   },
+
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+
+  pillContainer: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+
+  pill: {
+    minWidth: 90,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  pillText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
   swipeContainer: {
     flex: 1,
     minHeight: 600,
@@ -349,12 +411,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 10,
   },
+
   errorContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
   },
+
   stickyBanner: {
     position: 'absolute',
     bottom: 0,

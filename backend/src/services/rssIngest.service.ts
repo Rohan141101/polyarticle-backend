@@ -1,6 +1,6 @@
 import Parser from 'rss-parser'
 import axios from 'axios'
-import { pool } from '../db'
+import { supabaseAdmin } from '../lib/supabase'
 
 type FeedConfig = {
   url: string
@@ -10,121 +10,44 @@ type FeedConfig = {
 }
 
 const RSS_FEEDS: FeedConfig[] = [
-  // USA — World & Politics
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', category: 'World', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml', category: 'Politics', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml', category: 'Business', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml', category: 'Technology', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Health.xml', category: 'Health', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Movies.xml', category: 'Entertainment', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml', category: 'Sports', country: 'USA' },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Science.xml', category: 'Technology', country: 'USA' },
-  { url: 'https://feeds.washingtonpost.com/rss/world', category: 'World', country: 'USA' },
-  { url: 'https://feeds.washingtonpost.com/rss/politics', category: 'Politics', country: 'USA' },
-  { url: 'https://feeds.washingtonpost.com/rss/business', category: 'Business', country: 'USA' },
-  { url: 'https://feeds.washingtonpost.com/rss/technology', category: 'Technology', country: 'USA' },
-  { url: 'https://feeds.washingtonpost.com/rss/sports', category: 'Sports', country: 'USA' },
-  { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', category: 'Business', country: 'USA' },
-  { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', category: 'Technology', country: 'USA' },
-  { url: 'https://www.cnbc.com/id/10001147/device/rss/rss.html', category: 'Stocks', country: 'USA' },
-  { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', category: 'World', country: 'USA' },
-  { url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', category: 'Stocks', country: 'USA' },
-  { url: 'https://www.marketwatch.com/rss/topstories', category: 'Stocks', country: 'USA' },
-  { url: 'https://www.marketwatch.com/rss/marketpulse', category: 'Stocks', country: 'USA' },
-  { url: 'https://feeds.bloomberg.com/markets/news.rss', category: 'Stocks', country: 'USA' },
-  { url: 'https://feeds.bloomberg.com/technology/news.rss', category: 'Technology', country: 'USA' },
-  { url: 'https://www.espn.com/espn/rss/news', category: 'Sports', country: 'USA' },
-  { url: 'https://api.foxnews.com/v1/content/0/articles?tags=fox-news/world&formatted=true&callback=angular.callbacks._7r', category: 'World', country: 'USA' },
-  { url: 'https://moxie.foxnews.com/google-publisher/world.xml', category: 'World', country: 'USA' },
-  { url: 'https://moxie.foxnews.com/google-publisher/politics.xml', category: 'Politics', country: 'USA' },
-  { url: 'https://moxie.foxnews.com/google-publisher/science-tech.xml', category: 'Technology', country: 'USA' },
-  { url: 'https://moxie.foxnews.com/google-publisher/sports.xml', category: 'Sports', country: 'USA' },
-  { url: 'https://feeds.npr.org/1001/rss.xml', category: 'World', country: 'USA' },
-  { url: 'https://feeds.npr.org/1014/rss.xml', category: 'Politics', country: 'USA' },
-  { url: 'https://feeds.npr.org/1015/rss.xml', category: 'Business', country: 'USA' },
-  { url: 'https://feeds.npr.org/1048/rss.xml', category: 'Health', country: 'USA' },
-  { url: 'https://feeds.npr.org/1045/rss.xml', category: 'Technology', country: 'USA' },
-  { url: 'https://feeds.npr.org/1055/rss.xml', category: 'Sports', country: 'USA' },
 
-  // UK
-  { url: 'http://feeds.bbci.co.uk/news/world/rss.xml', category: 'World', country: 'UK' },
-  { url: 'http://feeds.bbci.co.uk/news/politics/rss.xml', category: 'Politics', country: 'UK' },
-  { url: 'http://feeds.bbci.co.uk/news/business/rss.xml', category: 'Business', country: 'UK' },
-  { url: 'http://feeds.bbci.co.uk/news/technology/rss.xml', category: 'Technology', country: 'UK' },
-  { url: 'http://feeds.bbci.co.uk/news/health/rss.xml', category: 'Health', country: 'UK' },
-  { url: 'http://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml', category: 'Entertainment', country: 'UK' },
-  { url: 'https://feeds.bbci.co.uk/sport/rss.xml', category: 'Sports', country: 'UK' },
-  { url: 'https://www.theguardian.com/world/rss', category: 'World', country: 'UK' },
-  { url: 'https://www.theguardian.com/politics/rss', category: 'Politics', country: 'UK' },
-  { url: 'https://www.theguardian.com/business/rss', category: 'Business', country: 'UK' },
-  { url: 'https://www.theguardian.com/technology/rss', category: 'Technology', country: 'UK' },
-  { url: 'https://www.theguardian.com/sport/rss', category: 'Sports', country: 'UK' },
-  { url: 'https://www.theguardian.com/society/health/rss', category: 'Health', country: 'UK' },
-  { url: 'https://www.theguardian.com/culture/rss', category: 'Entertainment', country: 'UK' },
-  { url: 'https://www.independent.co.uk/rss', category: 'World', country: 'UK' },
-  { url: 'https://www.telegraph.co.uk/rss.xml', category: 'World', country: 'UK' },
-  { url: 'https://www.ft.com/world?format=rss', category: 'Business', country: 'UK' },
+  { url: 'https://rss.cnn.com/rss/edition.rss', category: 'World', country: 'USA' },
+  { url: 'https://rss.cnn.com/rss/edition_technology.rss', category: 'Technology', country: 'USA' },
 
-  // Europe
-  { url: 'https://www.euronews.com/rss', category: 'World', country: 'Europe' },
-  { url: 'https://feeds.feedburner.com/euractiv', category: 'Politics', country: 'Europe' },
-  { url: 'https://www.dw.com/rss/rss.xml', category: 'World', country: 'Europe' },
-  { url: 'https://www.spiegel.de/international/index.rss', category: 'World', country: 'Europe' },
-  { url: 'https://www.lemonde.fr/en/rss/une.xml', category: 'World', country: 'Europe' },
-  { url: 'https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada', category: 'World', country: 'Europe' },
+  { url: 'https://feeds.nbcnews.com/nbcnews/public/news', category: 'World', country: 'USA' },
+  { url: 'https://feeds.nbcnews.com/nbcnews/public/business', category: 'Business', country: 'USA' },
+  { url: 'https://feeds.nbcnews.com/nbcnews/public/technology', category: 'Technology', country: 'USA' },
 
-  // Australia & New Zealand
-  { url: 'https://www.abc.net.au/news/feed/51120/rss.xml', category: 'World', country: 'Australia' },
-  { url: 'https://www.abc.net.au/news/feed/51892/rss.xml', category: 'Politics', country: 'Australia' },
-  { url: 'https://www.abc.net.au/news/feed/52278/rss.xml', category: 'Business', country: 'Australia' },
-  { url: 'https://www.abc.net.au/news/feed/52498/rss.xml', category: 'Technology', country: 'Australia' },
-  { url: 'https://www.abc.net.au/news/feed/52498/rss.xml', category: 'Sports', country: 'Australia' },
-  { url: 'https://www.smh.com.au/rss/feed.xml', category: 'World', country: 'Australia' },
-  { url: 'https://www.rnz.co.nz/rss/news.xml', category: 'World', country: 'New Zealand' },
-  { url: 'https://www.stuff.co.nz/rss', category: 'World', country: 'New Zealand' },
+  { url: 'https://feeds.skynews.com/feeds/rss/world.xml', category: 'World', country: 'UK' },
+  { url: 'https://feeds.skynews.com/feeds/rss/business.xml', category: 'Business', country: 'UK' },
+  { url: 'https://feeds.skynews.com/feeds/rss/technology.xml', category: 'Technology', country: 'UK' },
 
-  // Canada
-  { url: 'https://www.cbc.ca/cmlink/rss-topstories', category: 'World', country: 'Canada' },
-  { url: 'https://www.cbc.ca/cmlink/rss-politics', category: 'Politics', country: 'Canada' },
-  { url: 'https://www.cbc.ca/cmlink/rss-business', category: 'Business', country: 'Canada' },
-  { url: 'https://www.cbc.ca/cmlink/rss-technology', category: 'Technology', country: 'Canada' },
-  { url: 'https://www.cbc.ca/cmlink/rss-sports', category: 'Sports', country: 'Canada' },
-  { url: 'https://globalnews.ca/feed/', category: 'World', country: 'Canada' },
-  { url: 'https://www.theglobeandmail.com/arc/outboundfeeds/rss/', category: 'World', country: 'Canada' },
-
-  // Singapore
-  { url: 'https://www.straitstimes.com/news/singapore/rss.xml', category: 'World', country: 'Singapore' },
-  { url: 'https://www.straitstimes.com/news/asia/rss.xml', category: 'World', country: 'Singapore' },
   { url: 'https://www.channelnewsasia.com/rss-feeds/8395884', category: 'World', country: 'Singapore' },
-  { url: 'https://www.channelnewsasia.com/rss-feeds/8395744', category: 'Business', country: 'Singapore' },
-  { url: 'https://www.businesstimes.com.sg/rss/all', category: 'Business', country: 'Singapore' },
 
-  // Global Tech & Crypto
   { url: 'https://techcrunch.com/feed/', category: 'Technology', country: null },
   { url: 'https://www.theverge.com/rss/index.xml', category: 'Technology', country: null },
+  { url: 'https://www.engadget.com/rss.xml', category: 'Technology', country: null },
   { url: 'https://www.wired.com/feed/rss', category: 'Technology', country: null },
-  { url: 'https://feeds.arstechnica.com/arstechnica/index', category: 'Technology', country: null },
-  { url: 'https://www.technologyreview.com/feed/', category: 'Technology', country: null },
-  { url: 'https://venturebeat.com/feed/', category: 'Technology', country: null },
-  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', category: 'Crypto', country: null },
+  { url: 'https://www.techradar.com/rss', category: 'Technology', country: null },
+  { url: 'https://www.zdnet.com/news/rss.xml', category: 'Technology', country: null },
+  { url: 'https://arstechnica.com/feed/', category: 'Technology', country: null },
+
+  { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', category: 'Business', country: 'USA' },
+  { url: 'https://www.cnbc.com/id/10001147/device/rss/rss.html', category: 'Stocks', country: 'USA' },
+  { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', category: 'Stocks', country: 'USA' },
+  { url: 'https://finance.yahoo.com/rss/topstories', category: 'Business', country: 'USA' },
+
   { url: 'https://cointelegraph.com/rss', category: 'Crypto', country: null },
   { url: 'https://decrypt.co/feed', category: 'Crypto', country: null },
-  { url: 'https://bitcoinmagazine.com/.rss/full/', category: 'Crypto', country: null },
+  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', category: 'Crypto', country: null },
 
-  // Global Health & Science
-  { url: 'https://www.who.int/rss-feeds/news-english.xml', category: 'Health', country: null },
-  { url: 'https://www.medicalnewstoday.com/rss', category: 'Health', country: null },
-  { url: 'https://www.sciencedaily.com/rss/all.xml', category: 'Technology', country: null },
-  { url: 'https://www.newscientist.com/feed/home/', category: 'Technology', country: null },
+  { url: 'https://www.reuters.com/world/rss', category: 'World', country: null },
+  { url: 'https://www.reuters.com/technology/rss', category: 'Technology', country: null },
+  { url: 'https://www.reuters.com/business/rss', category: 'Business', country: null },
 
-  // Global Entertainment & Sports
-  { url: 'https://www.aljazeera.com/xml/rss/all.xml', category: 'World', country: null },
-  { url: 'https://feeds.skynews.com/feeds/rss/world.xml', category: 'World', country: 'UK' },
-  { url: 'https://feeds.skynews.com/feeds/rss/politics.xml', category: 'Politics', country: 'UK' },
-  { url: 'https://feeds.skynews.com/feeds/rss/technology.xml', category: 'Technology', country: 'UK' },
-  { url: 'https://feeds.skynews.com/feeds/rss/business.xml', category: 'Business', country: 'UK' },
-  { url: 'https://www.goal.com/feeds/en/news', category: 'Sports', country: null },
-  { url: 'https://www.bbc.com/sport/football/rss.xml', category: 'Sports', country: 'UK' },
+  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'World', country: 'UK' },
+  { url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', category: 'Technology', country: 'UK' },
+
 ]
 
 const parser = new Parser({
@@ -145,13 +68,16 @@ function cleanUrl(url?: string | null): string | null {
 
 function extractImageFromItem(item: any): string | null {
   if (item.enclosure?.url) return cleanUrl(item.enclosure.url)
-  if (item.mediaContent?.url) return cleanUrl(item.mediaContent.url)
-  if (item.mediaThumbnail?.url) return cleanUrl(item.mediaThumbnail.url)
+  if (item.mediaContent?.$?.url) return cleanUrl(item.mediaContent.$.url)
+  if (item.mediaThumbnail?.$?.url) return cleanUrl(item.mediaThumbnail.$.url)
+  if (item['media:content']?.url) return cleanUrl(item['media:content'].url)
+
   const html = item.contentEncoded || item.content || item.description
   if (html) {
     const match = html.match(/<img[^>]+src="([^">]+)"/i)
     if (match) return cleanUrl(match[1])
   }
+
   return null
 }
 
@@ -184,12 +110,21 @@ async function processFeed(feedConfig: FeedConfig): Promise<ParsedArticle[]> {
     const feed = await parser.parseURL(feedConfig.url)
     const articles: ParsedArticle[] = []
 
+    let ogCalls = 0
+
     for (const item of feed.items) {
-      if (!item.title || !item.link) continue
-      const image = extractImageFromItem(item)
+      if (!item.title || !item.link || item.title.length < 25) continue
+
+      let image = extractImageFromItem(item)
+
+      if (!image && ogCalls < 80) {
+        image = await extractOGImage(item.link)
+        ogCalls++
+      }
+
       articles.push({
         title: item.title.trim(),
-        summary: (item.contentSnippet || '').slice(0, 1000),
+        summary: (item.contentSnippet || '').slice(0, 500),
         image,
         url: item.link,
         category: feedConfig.category,
@@ -208,55 +143,35 @@ async function processFeed(feedConfig: FeedConfig): Promise<ParsedArticle[]> {
 async function batchInsert(articles: ParsedArticle[]): Promise<{ inserted: number, skipped: number }> {
   if (!articles.length) return { inserted: 0, skipped: 0 }
 
+  const chunkSize = 50
   let inserted = 0
   let skipped = 0
 
-  // Insert in chunks of 50
-  const chunkSize = 50
   for (let i = 0; i < articles.length; i += chunkSize) {
     const chunk = articles.slice(i, i + chunkSize)
 
-    const values: any[] = []
-    const placeholders = chunk.map((_, idx) => {
-      const base = idx * 9
-      values.push(
-        chunk[idx].title,
-        chunk[idx].summary,
-        chunk[idx].image,
-        chunk[idx].url,
-        chunk[idx].category,
-        chunk[idx].source,
-        chunk[idx].publishedAt,
-        chunk[idx].country,
+    const { data, error } = await supabaseAdmin
+      .from('articles')
+      .upsert(
+        chunk.map(a => ({
+          title: a.title,
+          summary: a.summary,
+          image_url: a.image,
+          url: a.url,
+          category: a.category,
+          source: a.source,
+          published_at: a.publishedAt.toISOString(),
+          country: a.country,
+        })),
+        { onConflict: 'title,source' }
       )
-      return `(gen_random_uuid(), $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, NOW())`
-    })
+      .select()
 
-    try {
-      const result = await pool.query(
-        `INSERT INTO articles (id, title, summary, image_url, url, category, source, published_at, country, created_at)
-         VALUES ${placeholders.join(', ')}
-         ON CONFLICT ON CONSTRAINT unique_title_source DO NOTHING`,
-        values
-      )
-      inserted += result.rowCount ?? 0
-      skipped += chunk.length - (result.rowCount ?? 0)
-    } catch {
-      // Fall back to one-by-one on chunk failure
-      for (const article of chunk) {
-        try {
-          const r = await pool.query(
-            `INSERT INTO articles (id, title, summary, image_url, url, category, source, published_at, country, created_at)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, NOW())
-             ON CONFLICT ON CONSTRAINT unique_title_source DO NOTHING`,
-            [article.title, article.summary, article.image, article.url, article.category, article.source, article.publishedAt, article.country]
-          )
-          if (r.rowCount && r.rowCount > 0) inserted++
-          else skipped++
-        } catch {
-          skipped++
-        }
-      }
+    if (!error) {
+      inserted += data?.length ?? 0
+      skipped += chunk.length - (data?.length ?? 0)
+    } else {
+      skipped += chunk.length
     }
   }
 
@@ -264,25 +179,32 @@ async function batchInsert(articles: ParsedArticle[]): Promise<{ inserted: numbe
 }
 
 async function backfillMissingImages(articles: ParsedArticle[]): Promise<void> {
-  const missing = articles.filter(a => !a.image).slice(0, 20)
+  const missing = articles.filter(a => !a.image).slice(0, 80)
+
   await Promise.allSettled(
     missing.map(async (article) => {
       const image = await extractOGImage(article.url)
+
       if (image) {
-        await pool.query(
-          `UPDATE articles SET image_url = $1 WHERE url = $2 AND image_url IS NULL`,
-          [image, article.url]
-        )
+        await supabaseAdmin
+          .from('articles')
+          .update({ image_url: image })
+          .eq('url', article.url)
+          .is('image_url', null)
       }
     })
   )
 }
 
 async function deleteOldArticles(): Promise<number> {
-  const result = await pool.query(
-    `DELETE FROM articles WHERE published_at < NOW() - INTERVAL '7 days'`
-  )
-  return result.rowCount ?? 0
+  const { data, error } = await supabaseAdmin
+    .from('articles')
+    .delete()
+    .lt('published_at', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString())
+    .select()
+
+  if (error) return 0
+  return data?.length ?? 0
 }
 
 export async function ingestRSSFeeds() {
@@ -291,11 +213,12 @@ export async function ingestRSSFeeds() {
   const deleted = await deleteOldArticles()
 
   const allArticles: ParsedArticle[] = []
-  const batchSize = 15
+  const batchSize = 20
 
   for (let i = 0; i < RSS_FEEDS.length; i += batchSize) {
     const batch = RSS_FEEDS.slice(i, i + batchSize)
     const results = await Promise.allSettled(batch.map(processFeed))
+
     for (const result of results) {
       if (result.status === 'fulfilled') {
         allArticles.push(...result.value)
@@ -311,7 +234,6 @@ export async function ingestRSSFeeds() {
   })
 
   const { inserted, skipped } = await batchInsert(unique)
-
   await backfillMissingImages(unique.filter(a => !a.image))
 
   const duration = Math.round((Date.now() - startTime) / 1000)
