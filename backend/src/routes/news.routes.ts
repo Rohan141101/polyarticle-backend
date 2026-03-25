@@ -1,6 +1,6 @@
 import { Router, Request, Response, RequestHandler, NextFunction } from 'express'
 import { getNews, getRegionalNews } from '../services/news.service'
-import { ingestRSSFeeds, testRSSFeeds } from '../services/rssIngest.service'
+import { ingestRSSFeeds } from '../services/rssIngest.service'
 import { repairMissingImages } from '../services/imageRepair.service'
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.middleware'
 import { inferCategory } from '../services/category.service'
@@ -18,34 +18,11 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next()
 }
 
-/* ===================== ADMIN TEST ROUTES (NO AUTH FOR LOCAL) ===================== */
-
-// ✅ TEST RSS FEEDS (image check)
-router.get('/admin/test-feeds', async (_req: Request, res: Response) => {
-  try {
-    await testRSSFeeds()
-    return res.json({ success: true })
-  } catch (err: any) {
-    console.error("❌ TEST FEEDS ERROR:", err)
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        err?.detail ||
-        JSON.stringify(err) ||
-        'Test feeds failed'
-    })
-  }
-})
-
-// ✅ INGEST RSS (no auth for now)
 router.get('/admin/rss-ingest', async (_req: Request, res: Response) => {
   try {
     const result = await ingestRSSFeeds()
     return res.json(result)
   } catch (err: any) {
-    console.error("❌ RSS INGEST ERROR:", err)
-
     return res.status(500).json({
       error:
         err?.message ||
@@ -56,15 +33,11 @@ router.get('/admin/rss-ingest', async (_req: Request, res: Response) => {
   }
 })
 
-/* ===================== ADMIN (PROTECTED) ===================== */
-
 router.get('/admin/repair-images', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
     const result = await repairMissingImages()
     return res.json(result)
   } catch (err: any) {
-    console.error("❌ IMAGE REPAIR ERROR:", err)
-
     return res.status(500).json({
       error:
         err?.message ||
@@ -99,8 +72,6 @@ router.get('/admin/backfill-categories', auth, requireAdmin, async (_req: Reques
 
     return res.json({ success: true, processed: articles.length, updated })
   } catch (err: any) {
-    console.error("❌ BACKFILL ERROR:", err)
-
     return res.status(500).json({
       error:
         err?.message ||
@@ -110,8 +81,6 @@ router.get('/admin/backfill-categories', auth, requireAdmin, async (_req: Reques
     })
   }
 })
-
-/* ===================== USER FEED ===================== */
 
 router.get('/regional', auth, async (req: Request, res: Response) => {
   try {
@@ -125,8 +94,6 @@ router.get('/regional', auth, async (req: Request, res: Response) => {
 
     return res.json({ success: true, count: news.length, data: news })
   } catch (err: any) {
-    console.error("❌ REGIONAL NEWS ERROR:", err)
-
     return res.status(500).json({
       error:
         err?.message ||
@@ -158,8 +125,6 @@ router.get('/', auth, async (req: Request, res: Response) => {
       data: news
     })
   } catch (err: any) {
-    console.error("❌ NEWS ERROR:", err)
-
     return res.status(500).json({
       error:
         err?.message ||
@@ -169,8 +134,6 @@ router.get('/', auth, async (req: Request, res: Response) => {
     })
   }
 })
-
-/* ===================== HEALTH ===================== */
 
 router.get('/health', (_req: Request, res: Response) => {
   return res.json({
