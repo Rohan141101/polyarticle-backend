@@ -92,6 +92,7 @@ export async function getNews(
 ): Promise<Article[]> {
   const offset = (page - 1) * limit
 
+  // CATEGORY MODE
   if (category && category !== 'For You') {
     const result = await pool.query<Article>(
       `SELECT id, title, summary, image_url, url, source, published_at, category
@@ -104,6 +105,7 @@ export async function getNews(
     return result.rows
   }
 
+  // FRESH MODE
   if (fresh) {
     const result = await pool.query<Article>(
       `SELECT id, title, summary, image_url, url, source, published_at, category
@@ -119,10 +121,10 @@ export async function getNews(
     return result.rows
   }
 
+  // RESET LOGIC
   const unseenCountResult = await pool.query<{ count: string }>(
     `SELECT COUNT(*) FROM articles a
-     WHERE a.embedding IS NOT NULL
-     AND a.id NOT IN (
+     WHERE a.id NOT IN (
        SELECT article_id FROM user_seen WHERE user_id = $1
      )`,
     [userId]
@@ -141,6 +143,7 @@ export async function getNews(
 
   const { user_vector, interests } = await getUserProfile(userId)
 
+  // NEW USER LOGIC
   if (!user_vector) {
     if (interests.length > 0) {
       const fallback = await pool.query<Article>(
@@ -164,48 +167,51 @@ export async function getNews(
     return applyDiversity(fallback.rows)
   }
 
-  const vectorLiteral = `[${user_vector.map(Number).join(',')}]`
-
+  // MAIN RANKING (embedding removed, logic preserved)
   let rankedResult = await pool.query<Article>(
     `SELECT
        a.id, a.title, a.summary, a.image_url, a.url,
        a.source, a.published_at, a.category,
+
        (
-         (1 - (a.embedding <=> $2::vector)) * 0.7 +
-         (CASE WHEN a.category = ANY($4) THEN 0.1 ELSE 0 END) +
+         0.7 +
+         (CASE WHEN a.category = ANY($3) THEN 0.1 ELSE 0 END) +
          (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.01)
        ) AS score
+
      FROM articles a
-     WHERE a.embedding IS NOT NULL
-       AND a.id NOT IN (
+     WHERE a.id NOT IN (
          SELECT article_id FROM user_seen WHERE user_id = $1
        )
      ORDER BY score DESC
-     LIMIT 100 OFFSET $3`,
-    [userId, vectorLiteral, offset, interests]
+     LIMIT 100 OFFSET $2`,
+    [userId, offset, interests]
   )
 
   let ranked = rankedResult.rows
 
+  // FALLBACK: include seen
   if (!ranked.length) {
     rankedResult = await pool.query<Article>(
       `SELECT
          a.id, a.title, a.summary, a.image_url, a.url,
          a.source, a.published_at, a.category,
+
          (
-           (1 - (a.embedding <=> $2::vector)) * 0.7 +
-           (CASE WHEN a.category = ANY($4) THEN 0.1 ELSE 0 END) +
+           0.7 +
+           (CASE WHEN a.category = ANY($3) THEN 0.1 ELSE 0 END) +
            (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.01)
          ) AS score
+
        FROM articles a
-       WHERE a.embedding IS NOT NULL
        ORDER BY score DESC
-       LIMIT 100 OFFSET $3`,
-      [userId, vectorLiteral, offset, interests]
+       LIMIT 100 OFFSET $2`,
+      [userId, offset, interests]
     )
     ranked = rankedResult.rows
   }
 
+  // FINAL FALLBACK
   if (!ranked.length) {
     const fallback = await pool.query<Article>(
       `SELECT id, title, summary, image_url, url, published_at, source, category
@@ -217,6 +223,7 @@ export async function getNews(
     return applyDiversity(fallback.rows)
   }
 
+  // FEED COMPOSITION
   const personalizedCount = randomBetween(3, 5)
   const trendingCount = randomBetween(2, 4)
   const explorationCount = randomBetween(1, 3)

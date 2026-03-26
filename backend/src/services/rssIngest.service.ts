@@ -10,20 +10,15 @@ type FeedConfig = {
 }
 
 const RSS_FEEDS: FeedConfig[] = [
-
   { url: 'https://rss.cnn.com/rss/edition.rss', category: 'World', country: 'USA' },
   { url: 'https://rss.cnn.com/rss/edition_technology.rss', category: 'Technology', country: 'USA' },
-
   { url: 'https://feeds.nbcnews.com/nbcnews/public/news', category: 'World', country: 'USA' },
   { url: 'https://feeds.nbcnews.com/nbcnews/public/business', category: 'Business', country: 'USA' },
   { url: 'https://feeds.nbcnews.com/nbcnews/public/technology', category: 'Technology', country: 'USA' },
-
   { url: 'https://feeds.skynews.com/feeds/rss/world.xml', category: 'World', country: 'UK' },
   { url: 'https://feeds.skynews.com/feeds/rss/business.xml', category: 'Business', country: 'UK' },
   { url: 'https://feeds.skynews.com/feeds/rss/technology.xml', category: 'Technology', country: 'UK' },
-
   { url: 'https://www.channelnewsasia.com/rss-feeds/8395884', category: 'World', country: 'Singapore' },
-
   { url: 'https://techcrunch.com/feed/', category: 'Technology', country: null },
   { url: 'https://www.theverge.com/rss/index.xml', category: 'Technology', country: null },
   { url: 'https://www.engadget.com/rss.xml', category: 'Technology', country: null },
@@ -31,23 +26,18 @@ const RSS_FEEDS: FeedConfig[] = [
   { url: 'https://www.techradar.com/rss', category: 'Technology', country: null },
   { url: 'https://www.zdnet.com/news/rss.xml', category: 'Technology', country: null },
   { url: 'https://arstechnica.com/feed/', category: 'Technology', country: null },
-
   { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', category: 'Business', country: 'USA' },
   { url: 'https://www.cnbc.com/id/10001147/device/rss/rss.html', category: 'Stocks', country: 'USA' },
   { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', category: 'Stocks', country: 'USA' },
   { url: 'https://finance.yahoo.com/rss/topstories', category: 'Business', country: 'USA' },
-
   { url: 'https://cointelegraph.com/rss', category: 'Crypto', country: null },
   { url: 'https://decrypt.co/feed', category: 'Crypto', country: null },
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', category: 'Crypto', country: null },
-
   { url: 'https://www.reuters.com/world/rss', category: 'World', country: null },
   { url: 'https://www.reuters.com/technology/rss', category: 'Technology', country: null },
   { url: 'https://www.reuters.com/business/rss', category: 'Business', country: null },
-
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'World', country: 'UK' },
   { url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', category: 'Technology', country: 'UK' },
-
 ]
 
 const parser = new Parser({
@@ -109,7 +99,6 @@ async function processFeed(feedConfig: FeedConfig): Promise<ParsedArticle[]> {
   try {
     const feed = await parser.parseURL(feedConfig.url)
     const articles: ParsedArticle[] = []
-
     let ogCalls = 0
 
     for (const item of feed.items) {
@@ -184,7 +173,6 @@ async function backfillMissingImages(articles: ParsedArticle[]): Promise<void> {
   await Promise.allSettled(
     missing.map(async (article) => {
       const image = await extractOGImage(article.url)
-
       if (image) {
         await supabaseAdmin
           .from('articles')
@@ -200,7 +188,10 @@ async function deleteOldArticles(): Promise<number> {
   const { data, error } = await supabaseAdmin
     .from('articles')
     .delete()
-    .lt('published_at', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString())
+    .lt(
+      'published_at',
+      new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+    )
     .select()
 
   if (error) return 0
@@ -213,10 +204,12 @@ export async function ingestRSSFeeds() {
   const deleted = await deleteOldArticles()
 
   const allArticles: ParsedArticle[] = []
+
   const batchSize = 20
 
   for (let i = 0; i < RSS_FEEDS.length; i += batchSize) {
     const batch = RSS_FEEDS.slice(i, i + batchSize)
+
     const results = await Promise.allSettled(batch.map(processFeed))
 
     for (const result of results) {
@@ -227,6 +220,7 @@ export async function ingestRSSFeeds() {
   }
 
   const seen = new Set<string>()
+
   const unique = allArticles.filter(a => {
     if (seen.has(a.url)) return false
     seen.add(a.url)
@@ -234,6 +228,7 @@ export async function ingestRSSFeeds() {
   })
 
   const { inserted, skipped } = await batchInsert(unique)
+
   await backfillMissingImages(unique.filter(a => !a.image))
 
   const duration = Math.round((Date.now() - startTime) / 1000)
