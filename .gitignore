@@ -3,3 +3,5 @@ backend/.env
 node_modules
 dist
 backend/dist
+android/gradle.properties
+android/app/my-release-key.keystore

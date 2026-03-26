@@ -72,7 +72,7 @@ export async function logEvent(req: AuthenticatedRequest, res: Response) {
       values
     )
 
-    log(`✅ Inserted ${validEvents.length} events for user: ${userId}`)
+    logger.log(`✅ Inserted ${validEvents.length} events for user: ${userId}`)
 
     const swipeEvents = validEvents.filter(
       e =>
