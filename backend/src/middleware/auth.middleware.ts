@@ -31,7 +31,7 @@ export async function requireAuth(
       .from('sessions')
       .select('*, app_users(*)')
       .eq('session_token', token)
-      .single()
+      .maybeSingle()
 
     if (error || !session) {
       return res.status(401).json({ error: 'Invalid session' })
