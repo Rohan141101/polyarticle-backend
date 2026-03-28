@@ -2,25 +2,29 @@ import * as SecureStore from 'expo-secure-store'
 
 const SESSION_KEY = 'flashfeed_session'
 
-
 export async function saveSession(token: string) {
   try {
-    if (!token) return
+    if (!token) {
+      console.log('❌ No token provided to saveSession')
+      return
+    }
 
-    await SecureStore.setItemAsync(SESSION_KEY, token)
-    console.log('✅ Session saved')
+    const cleaned = token.trim()
+
+    await SecureStore.setItemAsync(SESSION_KEY, cleaned)
+
+    console.log('✅ Session saved:', cleaned)
   } catch (err) {
     console.log('❌ Failed to save session:', err)
   }
 }
 
-
-export async function getSession() {
+export async function getSession(): Promise<string | null> {
   try {
     const token = await SecureStore.getItemAsync(SESSION_KEY)
 
     if (!token) {
-      console.log('⚠️ No session found')
+      console.log('⚠️ No session found in SecureStore')
       return null
     }
 
@@ -34,7 +38,6 @@ export async function getSession() {
     return null
   }
 }
-
 
 export async function clearSession() {
   try {

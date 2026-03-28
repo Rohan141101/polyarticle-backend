@@ -13,6 +13,7 @@ import { useSettings } from '../context/SettingsContext'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { fetchNews, fetchRegionalNews } from '../lib/api'
 import { eventLogger } from '../utils/eventLogger'
+import { useAuth } from '../context/AuthContext'
 import mobileAds, {
   BannerAd,
   BannerAdSize,
@@ -97,6 +98,7 @@ type Props = {
 
 export default function Feed({ onProfilePress, onOpenArticle }: Props) {
   const { settings } = useSettings()
+  const { loading } = useAuth() // ✅ FIXED
 
   const [activeCategory, setActiveCategory] = useState('For You')
   const [articles, setArticles] = useState<FeedItem[]>([])
@@ -172,9 +174,15 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
 
       const fetched = Array.isArray(response) ? response : []
       setArticles(insertAds(fetched))
-    } catch {
-      setError('Failed to load articles. Pull down to retry.')
-    } finally {
+    } catch (e: any) {
+      setError(
+      e?.message
+        ? String(e.message)
+        : typeof e === 'string'
+        ? e
+        : 'Something went wrong'
+    )
+    }finally {
       setInitialLoading(false)
     }
   }, [activeCategory])
@@ -224,8 +232,10 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
   }, [activeCategory, page])
 
   useEffect(() => {
-    loadInitial()
-  }, [loadInitial])
+    if (!loading) {
+      loadInitial()
+    }
+  }, [loading, loadInitial])
 
   useEffect(() => {
     if (articles.length > 0 && currentIndex >= articles.length - 5) {
@@ -233,7 +243,6 @@ export default function Feed({ onProfilePress, onOpenArticle }: Props) {
     }
   }, [currentIndex, articles.length, loadMore])
 
-  // ✅ FIXED DWELL TRACKING
   useEffect(() => {
     if (dwellStartRef.current !== null && articles[currentIndex - 1]) {
       const prev = articles[currentIndex - 1]

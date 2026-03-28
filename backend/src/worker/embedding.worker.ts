@@ -1,6 +1,6 @@
 import { Worker } from "bullmq"
 import { redisConnection } from "../queue/redis"
-import { pool } from "../db"
+import { db as pool } from '../lib/db'
 import { pipeline } from "@xenova/transformers"
 
 console.log("🔥 Embedding worker started")

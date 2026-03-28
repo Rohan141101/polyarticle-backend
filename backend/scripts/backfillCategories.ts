@@ -1,4 +1,4 @@
-import { pool } from "../db"
+import { db as pool } from '../src/lib/db'
 
 /* =======================================================
    🧠 CATEGORY INFERENCE

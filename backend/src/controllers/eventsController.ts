@@ -1,5 +1,5 @@
 import { Response } from 'express'
-import { pool } from '../db'
+import { db as pool } from '../lib/db'
 import { AuthenticatedRequest } from '../middleware/auth.middleware'
 import { logger } from '../utils/logger'
 

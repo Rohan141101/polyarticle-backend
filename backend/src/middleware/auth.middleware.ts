@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { supabaseAdmin } from '../lib/supabase'
+import { db as pool } from '../lib/db'
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -19,41 +19,70 @@ export async function requireAuth(
   next: NextFunction
 ) {
   try {
-    const header = req.headers.authorization
+    const rawHeader = (req.headers.authorization ||
+      (req.headers as any).Authorization) as string | undefined
 
-    if (!header || !header.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' })
+    if (!rawHeader) {
+      return res.status(401).json({ error: 'Unauthorized - no header' })
     }
 
-    const token = header.replace('Bearer ', '').trim()
+    const token = rawHeader.replace(/Bearer\s+/i, '').trim()
 
-    const { data: session, error } = await supabaseAdmin
-      .from('sessions')
-      .select('*, app_users(*)')
-      .eq('session_token', token)
-      .maybeSingle()
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized - no token' })
+    }
 
-    if (error || !session) {
+    const result = await pool.query(
+      `
+      SELECT 
+        s.session_token,
+        s.expires_at,
+        u.id,
+        u.email,
+        u.phone,
+        u.location,
+        u.is_email_verified,
+        u.is_active
+      FROM sessions s
+      JOIN app_users u ON s.user_id = u.id
+      WHERE s.session_token = $1
+      LIMIT 1
+      `,
+      [token]
+    )
+
+    const session = result.rows[0]
+
+    if (!session) {
       return res.status(401).json({ error: 'Invalid session' })
     }
 
     if (new Date(session.expires_at) < new Date()) {
-      await supabaseAdmin
-        .from('sessions')
-        .delete()
-        .eq('session_token', token)
+      await pool.query(
+        `DELETE FROM sessions WHERE session_token = $1`,
+        [token]
+      )
+
       return res.status(401).json({ error: 'Session expired' })
     }
 
-    if (!session.app_users?.is_active) {
+    if (!session.is_active) {
       return res.status(403).json({ error: 'Account is inactive' })
     }
 
-    req.user = session.app_users
+    req.user = {
+      id: session.id,
+      email: session.email,
+      phone: session.phone,
+      location: session.location,
+      is_email_verified: session.is_email_verified,
+      is_active: session.is_active
+    }
+
     req.sessionToken = token
 
     next()
-  } catch (err) {
-    res.status(500).json({ error: 'Authentication failed' })
+  } catch {
+    return res.status(500).json({ error: 'Authentication failed' })
   }
 }

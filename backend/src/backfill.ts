@@ -1,6 +1,6 @@
 import { Queue } from "bullmq"
 import { redisConnection } from "./queue/redis"
-import { pool } from "./db"
+import { db as pool } from '../src/lib/db'
 
 const embeddingQueue = new Queue("embedding-queue", {
   connection: redisConnection,

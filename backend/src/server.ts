@@ -1,4 +1,7 @@
 import "dotenv/config"
+import dns from "dns"
+dns.setDefaultResultOrder("ipv4first")
+
 import app from "./app"
 import { startRSSCron } from "./jobs/rss.cron"
 import cron from 'node-cron'

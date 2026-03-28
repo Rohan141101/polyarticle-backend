@@ -1,6 +1,21 @@
 import Parser from 'rss-parser'
-import axios from 'axios'
-import { supabaseAdmin } from '../lib/supabase'
+import { httpClient } from '../utils/httpClient'
+import { db } from '../lib/db'
+import https from 'https'
+
+const parser = new Parser({
+  timeout: 15000,
+  requestOptions: {
+    agent: new https.Agent({ family: 4 }),
+  },
+  customFields: {
+    item: [
+      ['media:content', 'mediaContent'],
+      ['media:thumbnail', 'mediaThumbnail'],
+      ['content:encoded', 'contentEncoded'],
+    ],
+  },
+})
 
 type FeedConfig = {
   url: string
@@ -33,23 +48,9 @@ const RSS_FEEDS: FeedConfig[] = [
   { url: 'https://cointelegraph.com/rss', category: 'Crypto', country: null },
   { url: 'https://decrypt.co/feed', category: 'Crypto', country: null },
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', category: 'Crypto', country: null },
-  { url: 'https://www.reuters.com/world/rss', category: 'World', country: null },
-  { url: 'https://www.reuters.com/technology/rss', category: 'Technology', country: null },
-  { url: 'https://www.reuters.com/business/rss', category: 'Business', country: null },
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'World', country: 'UK' },
   { url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', category: 'Technology', country: 'UK' },
 ]
-
-const parser = new Parser({
-  timeout: 15000,
-  customFields: {
-    item: [
-      ['media:content', 'mediaContent'],
-      ['media:thumbnail', 'mediaThumbnail'],
-      ['content:encoded', 'contentEncoded'],
-    ],
-  },
-})
 
 function cleanUrl(url?: string | null): string | null {
   if (!url) return null
@@ -73,10 +74,7 @@ function extractImageFromItem(item: any): string | null {
 
 async function extractOGImage(url: string): Promise<string | null> {
   try {
-    const res = await axios.get(url, {
-      timeout: 8000,
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-    })
+    const res = await httpClient.get(url)
     const match = res.data.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)
     return match ? cleanUrl(match[1]) : null
   } catch {
@@ -97,7 +95,9 @@ type ParsedArticle = {
 
 async function processFeed(feedConfig: FeedConfig): Promise<ParsedArticle[]> {
   try {
-    const feed = await parser.parseURL(feedConfig.url)
+    const res = await httpClient.get(feedConfig.url)
+    const feed = await parser.parseString(res.data)
+
     const articles: ParsedArticle[] = []
     let ogCalls = 0
 
@@ -129,42 +129,30 @@ async function processFeed(feedConfig: FeedConfig): Promise<ParsedArticle[]> {
   }
 }
 
-async function batchInsert(articles: ParsedArticle[]): Promise<{ inserted: number, skipped: number }> {
-  if (!articles.length) return { inserted: 0, skipped: 0 }
-
-  const chunkSize = 50
-  let inserted = 0
-  let skipped = 0
-
-  for (let i = 0; i < articles.length; i += chunkSize) {
-    const chunk = articles.slice(i, i + chunkSize)
-
-    const { data, error } = await supabaseAdmin
-      .from('articles')
-      .upsert(
-        chunk.map(a => ({
-          title: a.title,
-          summary: a.summary,
-          image_url: a.image,
-          url: a.url,
-          category: a.category,
-          source: a.source,
-          published_at: a.publishedAt.toISOString(),
-          country: a.country,
-        })),
-        { onConflict: 'title,source' }
+async function batchInsert(articles: ParsedArticle[]) {
+  for (const a of articles) {
+    try {
+      await db.query(
+        `
+        INSERT INTO articles (title, summary, image_url, url, category, source, published_at, country)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (title, source) DO NOTHING
+        `,
+        [
+          a.title,
+          a.summary,
+          a.image,
+          a.url,
+          a.category,
+          a.source,
+          a.publishedAt.toISOString(),
+          a.country,
+        ]
       )
-      .select()
-
-    if (!error) {
-      inserted += data?.length ?? 0
-      skipped += chunk.length - (data?.length ?? 0)
-    } else {
-      skipped += chunk.length
-    }
+    } catch {}
   }
 
-  return { inserted, skipped }
+  return { inserted: articles.length, skipped: 0 }
 }
 
 async function backfillMissingImages(articles: ParsedArticle[]): Promise<void> {
@@ -174,28 +162,29 @@ async function backfillMissingImages(articles: ParsedArticle[]): Promise<void> {
     missing.map(async (article) => {
       const image = await extractOGImage(article.url)
       if (image) {
-        await supabaseAdmin
-          .from('articles')
-          .update({ image_url: image })
-          .eq('url', article.url)
-          .is('image_url', null)
+        await db.query(
+          `
+          UPDATE articles
+          SET image_url = $1
+          WHERE url = $2 AND image_url IS NULL
+          `,
+          [image, article.url]
+        )
       }
     })
   )
 }
 
 async function deleteOldArticles(): Promise<number> {
-  const { data, error } = await supabaseAdmin
-    .from('articles')
-    .delete()
-    .lt(
-      'published_at',
-      new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-    )
-    .select()
+  const res = await db.query(
+    `
+    DELETE FROM articles
+    WHERE published_at < NOW() - INTERVAL '3 days'
+    RETURNING *
+    `
+  )
 
-  if (error) return 0
-  return data?.length ?? 0
+  return res.rowCount || 0
 }
 
 export async function ingestRSSFeeds() {
@@ -204,7 +193,6 @@ export async function ingestRSSFeeds() {
   const deleted = await deleteOldArticles()
 
   const allArticles: ParsedArticle[] = []
-
   const batchSize = 20
 
   for (let i = 0; i < RSS_FEEDS.length; i += batchSize) {

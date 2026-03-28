@@ -1,5 +1,5 @@
 import axios from "axios"
-import { pool } from "../db"
+import { db as pool } from '../lib/db'
 
 function extractImageFromHTML(html: string): string | null {
   // 1️⃣ Try og:image

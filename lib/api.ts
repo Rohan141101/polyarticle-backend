@@ -1,6 +1,6 @@
 import { getSession } from './session'
 
-const API_URL = "https://polyarticle-backend.onrender.com"
+export const API_URL = "https://polyarticle-backend.onrender.com"
 
 type AuthPayload = {
   email: string
@@ -38,11 +38,18 @@ type User = {
   is_active: boolean
 }
 
-function fetchWithTimeout(url: string, options: RequestInit, ms = 10000): Promise<Response> {
+function fetchWithTimeout(url: string, options: RequestInit, ms = 60000): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
-  return fetch(url, { ...options, signal: controller.signal })
-    .finally(() => clearTimeout(timer))
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+    headers: {
+      ...(options.headers || {}),
+      Connection: 'keep-alive',
+    },
+  }).finally(() => clearTimeout(timer))
 }
 
 async function handleJson<T>(res: Response): Promise<T> {
@@ -70,8 +77,16 @@ export async function signup(payload: AuthPayload) {
   const res = await fetchWithTimeout(`${API_URL}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      email: payload.email,
+      password: payload.password,
+      location: payload.location,
+      interests: payload.interests,
+      deviceName: payload.deviceName,
+      deviceOS: payload.deviceOS,
+    }),
   }, 30000)
+
   return handleJson(res)
 }
 
@@ -79,21 +94,32 @@ export async function login(payload: AuthPayload) {
   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      email: payload.email,
+      password: payload.password,
+    }),
   }, 30000)
+
   return handleJson(res)
 }
 
 export async function getMe(token?: string): Promise<{ user: User }> {
   const authToken = token || (await getSession())
+
+  if (!authToken) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${authToken}` },
   })
+
   return handleJson(res)
 }
 
 export async function updateLocation(location: string) {
   const token = await getSession()
+
+  if (!token) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/profile/location`, {
     method: 'PATCH',
     headers: {
@@ -102,32 +128,45 @@ export async function updateLocation(location: string) {
     },
     body: JSON.stringify({ location }),
   })
+
   return handleJson(res)
 }
 
 export async function getActiveSessions(token?: string) {
   const authToken = token || (await getSession())
+
+  if (!authToken) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/auth/sessions`, {
     headers: { Authorization: `Bearer ${authToken}` },
   })
+
   return handleJson(res)
 }
 
 export async function logout(sessionToken?: string) {
   const token = sessionToken || (await getSession())
+
+  if (!token) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/auth/logout`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   })
+
   return handleJson(res)
 }
 
 export async function revokeOtherSessions(token?: string) {
   const authToken = token || (await getSession())
+
+  if (!authToken) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/auth/revoke-others`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${authToken}` },
   })
+
   return handleJson(res)
 }
 
@@ -138,6 +177,9 @@ export async function fetchNews(
   fresh: boolean = false
 ): Promise<Article[]> {
   const token = await getSession()
+
+  if (!token) throw new Error('NO_TOKEN')
+
   const selectedCategory = category || 'For You'
 
   const url = `${API_URL}/news?category=${encodeURIComponent(selectedCategory)}&page=${page}&limit=${limit}&fresh=${fresh}`
@@ -166,6 +208,8 @@ export async function fetchNews(
 export async function fetchRegionalNews(limit: number = 10): Promise<Article[]> {
   const token = await getSession()
 
+  if (!token) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/news/regional?limit=${limit}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -188,8 +232,11 @@ export async function fetchRegionalNews(limit: number = 10): Promise<Article[]> 
   }))
 }
 
-export async function revokeSessionById(sessionId: string) {
+export async function revokeSessionById(sessionId: string): Promise<any> {
   const token = await getSession()
+
+  if (!token) throw new Error('NO_TOKEN')
+
   const res = await fetchWithTimeout(`${API_URL}/auth/revoke-session`, {
     method: 'POST',
     headers: {
@@ -198,5 +245,6 @@ export async function revokeSessionById(sessionId: string) {
     },
     body: JSON.stringify({ sessionId }),
   })
+
   return handleJson(res)
 }

@@ -4,7 +4,7 @@ import { ingestRSSFeeds } from '../services/rssIngest.service'
 import { repairMissingImages } from '../services/imageRepair.service'
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.middleware'
 import { inferCategory } from '../services/category.service'
-import { pool } from '../db'
+import { db as pool } from '../lib/db'
 
 const router = Router()
 
