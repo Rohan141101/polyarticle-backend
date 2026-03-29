@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSettings } from '../context/SettingsContext'
@@ -33,6 +34,7 @@ type RowProps = {
   action?: boolean
   text: string
   sub: string
+  danger?: boolean
 }
 
 type ToggleRowProps = {
@@ -96,6 +98,28 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
     Alert.alert('Coming Soon', 'Password change will be available in the next update')
   }
 
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const url = `https://polyarticle.com/delete-account`
+              await Linking.openURL(url)
+            } catch {
+              Alert.alert('Error', 'Failed to open delete page')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]}>
       <View style={styles.topBar}>
@@ -111,11 +135,18 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
           <Row label="Email" value={email} text={text} sub={sub} />
           <Row label="Phone number" value="Coming soon" text={text} sub={sub} />
           <Row label="Saved articles" value="Coming soon" text={text} sub={sub} />
+
           <TouchableOpacity onPress={handleChangePassword}>
             <Row label="Change password" action text={text} sub={sub} />
           </TouchableOpacity>
+
           <TouchableOpacity onPress={onSessions}>
             <Row label="Active sessions" action text={text} sub={sub} />
+          </TouchableOpacity>
+
+          {/* 🔥 DELETE ACCOUNT */}
+          <TouchableOpacity onPress={handleDeleteAccount}>
+            <Row label="Delete Account" action text="#ff3b30" sub={sub} danger />
           </TouchableOpacity>
         </Section>
 

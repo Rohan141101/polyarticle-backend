@@ -6,7 +6,7 @@ import feedRoutes from './routes/feed.routes'
 import newsRoutes from './routes/news.routes'
 import eventsRoutes from './routes/events.routes'
 import profileRoutes from './routes/profile.route'
-import { supabaseAdmin } from './lib/supabase' // ✅ added
+import deleteAccountRoutes from './routes/deleteAccount.route'
 
 const app = express()
 
@@ -22,17 +22,8 @@ app.use(cors({
 
 app.use(express.json({ limit: '10kb' }))
 
-// ✅ DEBUG ROUTE (added)
-app.get('/debug-role', async (req, res) => {
-  const { data, error } = await supabaseAdmin
-    .from('app_users')
-    .select('*')
-    .limit(1)
-
-  res.json({ data, error })
-})
-
 app.use('/auth', authRoutes)
+app.use('/auth', deleteAccountRoutes)
 app.use('/feed', feedRoutes)
 app.use('/news', newsRoutes)
 app.use('/events', eventsRoutes)
