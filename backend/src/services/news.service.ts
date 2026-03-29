@@ -112,10 +112,11 @@ export async function getNews(
        WHERE id NOT IN (
          SELECT article_id FROM user_seen WHERE user_id = $1
        )
-       ORDER BY published_at DESC
+       ORDER BY published_at DESC, RANDOM()
        LIMIT $2`,
       [userId, limit]
     )
+
     await markArticlesSeen(userId, result.rows)
     return result.rows
   }
@@ -130,11 +131,11 @@ export async function getNews(
 
   const unseenCount = parseInt(unseenCountResult.rows[0].count)
 
-  if (unseenCount < 15) {
+  if (unseenCount < 5) {
     await pool.query(
       `DELETE FROM user_seen
        WHERE user_id = $1
-       AND seen_at < NOW() - INTERVAL '2 days'`,
+       AND seen_at < NOW() - INTERVAL '3 days'`,
       [userId]
     )
   }
@@ -142,26 +143,32 @@ export async function getNews(
   const { user_vector, interests } = await getUserProfile(userId)
 
   if (!user_vector) {
+    let fallback: Article[] = []
+
     if (interests.length > 0) {
-      const fallback = await pool.query<Article>(
+      const res = await pool.query<Article>(
         `SELECT id, title, summary, image_url, url, published_at, source, category
          FROM articles
          WHERE category = ANY($1)
-         ORDER BY published_at DESC
+         ORDER BY published_at DESC, RANDOM()
          LIMIT $2 OFFSET $3`,
         [interests, limit, offset]
       )
-      return applyDiversity(fallback.rows)
+      fallback = res.rows
+    } else {
+      const res = await pool.query<Article>(
+        `SELECT id, title, summary, image_url, url, published_at, source, category
+         FROM articles
+         ORDER BY published_at DESC, RANDOM()
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      )
+      fallback = res.rows
     }
 
-    const fallback = await pool.query<Article>(
-      `SELECT id, title, summary, image_url, url, published_at, source, category
-       FROM articles
-       ORDER BY published_at DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    )
-    return applyDiversity(fallback.rows)
+    fallback = applyDiversity(fallback)
+    await markArticlesSeen(userId, fallback)
+    return fallback
   }
 
   let rankedResult = await pool.query<Article>(
@@ -170,7 +177,7 @@ export async function getNews(
        a.source, a.published_at, a.category,
        (
          0.7 +
-         (CASE WHEN a.category = ANY($3) THEN 0.1 ELSE 0 END) +
+         (CASE WHEN a.category = ANY($3) THEN 0.15 ELSE 0 END) +
          (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.01)
        ) AS score
      FROM articles a
@@ -191,7 +198,7 @@ export async function getNews(
          a.source, a.published_at, a.category,
          (
            0.7 +
-           (CASE WHEN a.category = ANY($3) THEN 0.1 ELSE 0 END) +
+           (CASE WHEN a.category = ANY($3) THEN 0.15 ELSE 0 END) +
            (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.01)
          ) AS score
        FROM articles a
@@ -210,24 +217,26 @@ export async function getNews(
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     )
+
+    await markArticlesSeen(userId, fallback.rows)
     return applyDiversity(fallback.rows)
   }
 
   const personalized = ranked.slice(0, randomBetween(3, 5))
-  const trending = shuffle(ranked.slice(0, 20)).slice(0, randomBetween(2, 4))
+  const trending = shuffle(ranked.slice(0, 25)).slice(0, randomBetween(2, 4))
 
-  const explorationStart = randomBetween(10, 30)
+  const explorationStart = randomBetween(10, 40)
   const exploration = shuffle(
-    ranked.slice(explorationStart, explorationStart + 25)
+    ranked.slice(explorationStart, explorationStart + 30)
   ).slice(0, randomBetween(1, 3))
 
-  const randomPick = ranked[Math.floor(Math.random() * ranked.length)]
+  const freshBoost = shuffle(ranked.slice(0, 10)).slice(0, 2)
 
   let finalFeed = shuffle([
     ...personalized,
     ...trending,
     ...exploration,
-    randomPick,
+    ...freshBoost,
   ]).slice(0, limit)
 
   if (finalFeed.length < limit) {
@@ -245,24 +254,15 @@ export async function getRegionalNews(
   userId: string,
   limit: number = 10
 ): Promise<Article[]> {
-  const userResult = await pool.query<{ location: string }>(
-    `SELECT location FROM app_users WHERE id = $1`,
-    [userId]
-  )
-
-  if (!userResult.rows.length || !userResult.rows[0].location) {
-    return []
-  }
-
-  const location = userResult.rows[0].location
+  const allowedRegions = ['USA', 'UK', 'Canada', 'Australia', 'EU']
 
   const result = await pool.query<Article>(
     `SELECT id, title, summary, image_url, url, source, published_at, category, country
      FROM articles
-     WHERE country = $1
+     WHERE country = ANY($1)
      ORDER BY published_at DESC
      LIMIT $2`,
-    [location, limit]
+    [allowedRegions, limit]
   )
 
   return result.rows

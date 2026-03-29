@@ -25,31 +25,43 @@ type FeedConfig = {
 }
 
 const RSS_FEEDS: FeedConfig[] = [
-  { url: 'https://rss.cnn.com/rss/edition.rss', category: 'World', country: 'USA' },
-  { url: 'https://rss.cnn.com/rss/edition_technology.rss', category: 'Technology', country: 'USA' },
+  // ===== GENERAL =====
+  { url: 'https://feeds.bbci.co.uk/news/rss.xml', category: 'General', country: 'UK' },
+  { url: 'https://rss.cnn.com/rss/edition.rss', category: 'General', country: 'USA' },
+  { url: 'https://feeds.skynews.com/feeds/rss/home.xml', category: 'General', country: 'UK' },
+
+  { url: 'https://feeds.bbci.co.uk/news/politics/rss.xml', category: 'Politics', country: 'UK' },
+  { url: 'https://rss.cnn.com/rss/edition_politics.rss', category: 'Politics', country: 'USA' },
+  { url: 'https://www.politico.com/rss/politics08.xml', category: 'Politics', country: 'USA' },
+
+  { url: 'https://feeds.bbci.co.uk/news/health/rss.xml', category: 'Health', country: 'UK' },
+  { url: 'https://rss.cnn.com/rss/edition_health.rss', category: 'Health', country: 'USA' },
+  { url: 'https://www.medicalnewstoday.com/rss', category: 'Health', country: null },
+  { url: 'https://www.healthline.com/rss', category: 'Health', country: null },
+  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'World', country: 'UK' },
   { url: 'https://feeds.nbcnews.com/nbcnews/public/news', category: 'World', country: 'USA' },
-  { url: 'https://feeds.nbcnews.com/nbcnews/public/business', category: 'Business', country: 'USA' },
-  { url: 'https://feeds.nbcnews.com/nbcnews/public/technology', category: 'Technology', country: 'USA' },
-  { url: 'https://feeds.skynews.com/feeds/rss/world.xml', category: 'World', country: 'UK' },
-  { url: 'https://feeds.skynews.com/feeds/rss/business.xml', category: 'Business', country: 'UK' },
-  { url: 'https://feeds.skynews.com/feeds/rss/technology.xml', category: 'Technology', country: 'UK' },
-  { url: 'https://www.channelnewsasia.com/rss-feeds/8395884', category: 'World', country: 'Singapore' },
+
+  { url: 'https://rss.cnn.com/rss/edition_technology.rss', category: 'Technology', country: 'USA' },
   { url: 'https://techcrunch.com/feed/', category: 'Technology', country: null },
   { url: 'https://www.theverge.com/rss/index.xml', category: 'Technology', country: null },
   { url: 'https://www.engadget.com/rss.xml', category: 'Technology', country: null },
   { url: 'https://www.wired.com/feed/rss', category: 'Technology', country: null },
-  { url: 'https://www.techradar.com/rss', category: 'Technology', country: null },
-  { url: 'https://www.zdnet.com/news/rss.xml', category: 'Technology', country: null },
   { url: 'https://arstechnica.com/feed/', category: 'Technology', country: null },
+
   { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', category: 'Business', country: 'USA' },
-  { url: 'https://www.cnbc.com/id/10001147/device/rss/rss.html', category: 'Stocks', country: 'USA' },
-  { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', category: 'Stocks', country: 'USA' },
+  { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', category: 'Business', country: 'USA' },
   { url: 'https://finance.yahoo.com/rss/topstories', category: 'Business', country: 'USA' },
+
+  { url: 'https://www.cnbc.com/id/10001147/device/rss/rss.html', category: 'Stocks', country: 'USA' },
   { url: 'https://cointelegraph.com/rss', category: 'Crypto', country: null },
   { url: 'https://decrypt.co/feed', category: 'Crypto', country: null },
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', category: 'Crypto', country: null },
-  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'World', country: 'UK' },
-  { url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', category: 'Technology', country: 'UK' },
+
+  { url: 'https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml', category: 'General', country: 'USA' },
+  { url: 'https://feeds.bbci.co.uk/news/uk/rss.xml', category: 'General', country: 'UK' },
+  { url: 'https://www.theguardian.com/world/rss', category: 'General', country: 'UK' },
+  { url: 'https://www.cbc.ca/cmlink/rss-topstories', category: 'General', country: 'Canada' },
+  { url: 'https://www.abc.net.au/news/feed/51120/rss.xml', category: 'General', country: 'Australia' },
 ]
 
 function cleanUrl(url?: string | null): string | null {
@@ -61,7 +73,6 @@ function extractImageFromItem(item: any): string | null {
   if (item.enclosure?.url) return cleanUrl(item.enclosure.url)
   if (item.mediaContent?.$?.url) return cleanUrl(item.mediaContent.$.url)
   if (item.mediaThumbnail?.$?.url) return cleanUrl(item.mediaThumbnail.$.url)
-  if (item['media:content']?.url) return cleanUrl(item['media:content'].url)
 
   const html = item.contentEncoded || item.content || item.description
   if (html) {
@@ -75,7 +86,7 @@ function extractImageFromItem(item: any): string | null {
 async function extractOGImage(url: string): Promise<string | null> {
   try {
     const res = await httpClient.get(url)
-    const match = res.data.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)
+    const match = res.data.match(/<meta property="og:image" content="([^"]+)"/i)
     return match ? cleanUrl(match[1]) : null
   } catch {
     return null
