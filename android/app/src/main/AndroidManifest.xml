@@ -27,7 +27,6 @@
     android:fullBackupContent="@xml/secure_store_backup_rules"
     android:dataExtractionRules="@xml/secure_store_data_extraction_rules"
 
-    <!-- 🔥 IMPORTANT FIX -->
     android:usesCleartextTraffic="true"
     android:networkSecurityConfig="@xml/network_security_config"
   >

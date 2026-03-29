@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../lib/supabase'
+import { db as pool } from '../lib/db'
 import { hashPassword, verifyPassword } from '../utils/hash'
 import { generateSessionToken } from '../utils/token'
 
@@ -20,71 +20,63 @@ type UserRecord = {
   password_hash: string
 }
 
-const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000
 
+// ================= SIGNUP =================
 export async function signup(
   email: string,
   password: string,
   device?: DeviceInfo
 ) {
-  const { data: existing } = await supabaseAdmin
-    .from('app_users')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle()
+  const existing = await pool.query(
+    `SELECT id FROM app_users WHERE email = $1 LIMIT 1`,
+    [email]
+  )
 
-  if (existing) throw new Error('User already exists')
+  if (existing.rows.length > 0) {
+    throw new Error('User already exists')
+  }
 
   const passwordHash = await hashPassword(password)
 
-  const { data: user, error } = await supabaseAdmin
-    .from('app_users')
-    .insert([{
-      email,
-      password_hash: passwordHash,
-      location: device?.location ?? null,
-      is_active: true,
-      is_email_verified: false,
-    }])
-    .select()
-    .single()
+  const userResult = await pool.query<UserRecord>(
+    `
+    INSERT INTO app_users (email, password_hash, location, is_active, is_email_verified)
+    VALUES ($1, $2, $3, true, false)
+    RETURNING *
+    `,
+    [email, passwordHash, device?.location ?? null]
+  )
 
-  if (error || !user) {
-    console.error("❌ SUPABASE USER INSERT ERROR:", error)
-    throw new Error(error?.message || 'User insert failed')
-  }
+  const user = userResult.rows[0]
 
-  const { error: profileError } = await supabaseAdmin
-    .from('user_profiles')
-    .insert([{
-      user_id: user.id,
-      interests: device?.interests ?? [],
-      created_at: new Date(),
-      updated_at: new Date(),
-    }])
-
-  if (profileError) {
-    console.error("❌ PROFILE INSERT ERROR:", profileError)
-    throw new Error(profileError.message)
-  }
+  await pool.query(
+    `
+    INSERT INTO user_profiles (user_id, interests, created_at, updated_at)
+    VALUES ($1, $2, NOW(), NOW())
+    `,
+    [user.id, device?.interests ?? []]
+  )
 
   const sessionToken = generateSessionToken()
 
-  const { error: sessionError } = await supabaseAdmin
-    .from('sessions')
-    .insert([{
-      user_id: user.id,
-      session_token: sessionToken,
-      expires_at: new Date(Date.now() + SESSION_EXPIRY_MS),
-      device_name: device?.deviceName ?? null,
-      device_os: device?.deviceOS ?? null,
-      ip_address: device?.ipAddress ?? null,
-    }])
-
-  if (sessionError) {
-    console.error("❌ SESSION INSERT ERROR:", sessionError)
-    throw new Error(sessionError.message || 'Session creation failed')
-  }
+  await pool.query(
+    `
+    INSERT INTO sessions (
+      user_id, session_token, expires_at,
+      device_name, device_os, ip_address
+    )
+    VALUES ($1, $2, $3, $4, $5, $6)
+    `,
+    [
+      user.id,
+      sessionToken,
+      new Date(Date.now() + SESSION_EXPIRY_MS),
+      device?.deviceName ?? null,
+      device?.deviceOS ?? null,
+      device?.ipAddress ?? null,
+    ]
+  )
 
   return {
     user: {
@@ -97,17 +89,18 @@ export async function signup(
   }
 }
 
+// ================= LOGIN =================
 export async function login(
   email: string,
   password: string,
   device?: DeviceInfo
 ) {
-  const { data: user } = await supabaseAdmin
-    .from('app_users')
-    .select('*')
-    .eq('email', email)
-    .eq('is_active', true)
-    .single<UserRecord>()
+  const result = await pool.query<UserRecord>(
+    `SELECT * FROM app_users WHERE email = $1 AND is_active = true LIMIT 1`,
+    [email]
+  )
+
+  const user = result.rows[0]
 
   if (!user) throw new Error('Invalid credentials')
 
@@ -116,21 +109,23 @@ export async function login(
 
   const sessionToken = generateSessionToken()
 
-  const { error: sessionError } = await supabaseAdmin
-    .from('sessions')
-    .insert([{
-      user_id: user.id,
-      session_token: sessionToken,
-      expires_at: new Date(Date.now() + SESSION_EXPIRY_MS),
-      device_name: device?.deviceName ?? null,
-      device_os: device?.deviceOS ?? null,
-      ip_address: device?.ipAddress ?? null,
-    }])
-
-  if (sessionError) {
-    console.error("❌ SESSION INSERT ERROR:", sessionError)
-    throw new Error(sessionError.message || 'Login failed — could not create session')
-  }
+  await pool.query(
+    `
+    INSERT INTO sessions (
+      user_id, session_token, expires_at,
+      device_name, device_os, ip_address
+    )
+    VALUES ($1, $2, $3, $4, $5, $6)
+    `,
+    [
+      user.id,
+      sessionToken,
+      new Date(Date.now() + SESSION_EXPIRY_MS),
+      device?.deviceName ?? null,
+      device?.deviceOS ?? null,
+      device?.ipAddress ?? null,
+    ]
+  )
 
   return {
     user: {
@@ -143,84 +138,85 @@ export async function login(
   }
 }
 
+// ================= VALIDATE SESSION =================
 export async function validateSession(token: string) {
-  const cleanToken = token?.trim()
+  const result = await pool.query(
+    `
+    SELECT 
+      s.session_token,
+      s.expires_at,
+      u.*
+    FROM sessions s
+    JOIN app_users u ON s.user_id = u.id
+    WHERE s.session_token = $1
+    LIMIT 1
+    `,
+    [token.trim()]
+  )
 
-  console.log("🔍 TOKEN RECEIVED:", cleanToken)
-
-  const { data, error } = await supabaseAdmin
-    .from('sessions')
-    .select('*, app_users(*)')
-    .eq('session_token', cleanToken)
-
-  console.log("🔍 SESSION QUERY RESULT:", data, error)
-
-  if (error) {
-    console.error("❌ SESSION FETCH ERROR:", error)
-    throw new Error('Invalid session')
-  }
-
-  const session = data?.[0]
-
-  if (!session) throw new Error('Invalid session')
+  const session = result.rows[0]
 
   if (!session) throw new Error('Invalid session')
 
   if (new Date(session.expires_at) < new Date()) {
-    await supabaseAdmin
-      .from('sessions')
-      .delete()
-      .eq('session_token', cleanToken)
+    await pool.query(
+      `DELETE FROM sessions WHERE session_token = $1`,
+      [token]
+    )
     throw new Error('Session expired')
   }
 
-  return session.app_users
+  return {
+    id: session.id,
+    email: session.email,
+    phone: session.phone,
+    location: session.location,
+    is_active: session.is_active,
+    is_email_verified: session.is_email_verified,
+  }
 }
 
+// ================= SESSIONS =================
 export async function getActiveSessions(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('sessions')
-    .select('id, device_name, device_os, ip_address, created_at, expires_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+  const result = await pool.query(
+    `
+    SELECT id, device_name, device_os, ip_address, created_at, expires_at
+    FROM sessions
+    WHERE user_id = $1
+    ORDER BY created_at DESC
+    `,
+    [userId]
+  )
 
-  if (error) throw new Error(error.message || 'Failed to fetch sessions')
-
-  return data
+  return result.rows
 }
 
 export async function logout(sessionToken: string) {
-  const cleanToken = sessionToken?.trim()
-
-  const { error } = await supabaseAdmin
-    .from('sessions')
-    .delete()
-    .eq('session_token', cleanToken)
-
-  if (error) throw new Error(error.message || 'Logout failed')
+  await pool.query(
+    `DELETE FROM sessions WHERE session_token = $1`,
+    [sessionToken.trim()]
+  )
 }
 
 export async function revokeOtherSessions(
   userId: string,
   currentToken: string
 ) {
-  const cleanToken = currentToken?.trim()
-
-  const { error } = await supabaseAdmin
-    .from('sessions')
-    .delete()
-    .eq('user_id', userId)
-    .neq('session_token', cleanToken)
-
-  if (error) throw new Error(error.message || 'Failed to revoke sessions')
+  await pool.query(
+    `
+    DELETE FROM sessions
+    WHERE user_id = $1 AND session_token != $2
+    `,
+    [userId, currentToken.trim()]
+  )
 }
 
 export async function revokeSessionById(userId: string, sessionId: string) {
-  const { error } = await supabaseAdmin
-    .from('sessions')
-    .delete()
-    .eq('id', sessionId)
-    .eq('user_id', userId)
-
-  if (error) throw new Error(error.message || 'Failed to revoke session')
+  await pool.query(
+    `
+    DELETE FROM sessions
+    WHERE id = $1 AND user_id = $2
+    `,
+    [sessionId, userId]
+  )
 }
