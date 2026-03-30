@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSettings } from '../context/SettingsContext'
 import { useEffect, useState } from 'react'
 import { Picker } from '@react-native-picker/picker'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { updateLocation, getMe } from '../lib/api'
 
 type Props = {
@@ -97,34 +98,44 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
     Alert.alert('Coming Soon', 'Password change will be available in the next update')
   }
 
-  // 🔥 FIXED DELETE HANDLER
   const handleDeleteAccount = async () => {
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all your data. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const url = 'https://polyarticle.com/delete-account'
+    try {
+      const token = await AsyncStorage.getItem('token')
 
-            try {
-              const supported = await Linking.canOpenURL(url)
+      if (!token) {
+        Alert.alert('Error', 'User session not found')
+        return
+      }
 
-              if (supported) {
-                await Linking.openURL(url)
-              } else {
-                Alert.alert('Error', 'Cannot open delete page')
+      Alert.alert(
+        'Delete Account',
+        'This will permanently delete your account and all your data. This action cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              const url = `https://polyarticle.com/delete-account?token=${token}`
+
+              try {
+                const supported = await Linking.canOpenURL(url)
+
+                if (supported) {
+                  await Linking.openURL(url)
+                } else {
+                  Alert.alert('Error', 'Cannot open delete page')
+                }
+              } catch {
+                Alert.alert('Error', 'Failed to open delete page')
               }
-            } catch {
-              Alert.alert('Error', 'Something went wrong')
-            }
+            },
           },
-        },
-      ]
-    )
+        ]
+      )
+    } catch {
+      Alert.alert('Error', 'Something went wrong')
+    }
   }
 
   return (
@@ -214,11 +225,11 @@ function Section({ title, children, sub, card }: SectionProps) {
 
 function Row({ label, value, action, text, sub }: RowProps) {
   return (
-    <TouchableOpacity disabled={!action} style={styles.row}>
+    <View style={styles.row}>
       <Text style={{ color: text, fontSize: 15 }}>{label}</Text>
       {value && <Text style={{ color: sub, fontSize: 14 }}>{value}</Text>}
       {action && <Text style={{ color: sub, fontSize: 18 }}>›</Text>}
-    </TouchableOpacity>
+    </View>
   )
 }
 
