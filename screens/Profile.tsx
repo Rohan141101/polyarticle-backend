@@ -34,7 +34,6 @@ type RowProps = {
   action?: boolean
   text: string
   sub: string
-  danger?: boolean
 }
 
 type ToggleRowProps = {
@@ -98,6 +97,7 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
     Alert.alert('Coming Soon', 'Password change will be available in the next update')
   }
 
+  // 🔥 FIXED DELETE HANDLER
   const handleDeleteAccount = async () => {
     Alert.alert(
       'Delete Account',
@@ -108,11 +108,18 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            const url = 'https://polyarticle.com/delete-account'
+
             try {
-              const url = `https://polyarticle.com/delete-account`
-              await Linking.openURL(url)
+              const supported = await Linking.canOpenURL(url)
+
+              if (supported) {
+                await Linking.openURL(url)
+              } else {
+                Alert.alert('Error', 'Cannot open delete page')
+              }
             } catch {
-              Alert.alert('Error', 'Failed to open delete page')
+              Alert.alert('Error', 'Something went wrong')
             }
           },
         },
@@ -144,9 +151,8 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
             <Row label="Active sessions" action text={text} sub={sub} />
           </TouchableOpacity>
 
-          {/* 🔥 DELETE ACCOUNT */}
           <TouchableOpacity onPress={handleDeleteAccount}>
-            <Row label="Delete Account" action text="#ff3b30" sub={sub} danger />
+            <Row label="Delete Account" action text="#ff3b30" sub={sub} />
           </TouchableOpacity>
         </Section>
 

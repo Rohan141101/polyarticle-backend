@@ -112,7 +112,7 @@ export async function getNews(
        WHERE id NOT IN (
          SELECT article_id FROM user_seen WHERE user_id = $1
        )
-       ORDER BY published_at DESC, RANDOM()
+       ORDER BY published_at DESC
        LIMIT $2`,
       [userId, limit]
     )
@@ -131,11 +131,11 @@ export async function getNews(
 
   const unseenCount = parseInt(unseenCountResult.rows[0].count)
 
-  if (unseenCount < 5) {
+  if (unseenCount < 8) {
     await pool.query(
       `DELETE FROM user_seen
        WHERE user_id = $1
-       AND seen_at < NOW() - INTERVAL '3 days'`,
+       AND seen_at < NOW() - INTERVAL '2 days'`,
       [userId]
     )
   }
@@ -150,20 +150,20 @@ export async function getNews(
         `SELECT id, title, summary, image_url, url, published_at, source, category
          FROM articles
          WHERE category = ANY($1)
-         ORDER BY published_at DESC, RANDOM()
+         ORDER BY published_at DESC
          LIMIT $2 OFFSET $3`,
-        [interests, limit, offset]
+        [interests, limit * 2, offset]
       )
-      fallback = res.rows
+      fallback = shuffle(res.rows).slice(0, limit)
     } else {
       const res = await pool.query<Article>(
         `SELECT id, title, summary, image_url, url, published_at, source, category
          FROM articles
-         ORDER BY published_at DESC, RANDOM()
+         ORDER BY published_at DESC
          LIMIT $1 OFFSET $2`,
-        [limit, offset]
+        [limit * 2, offset]
       )
-      fallback = res.rows
+      fallback = shuffle(res.rows).slice(0, limit)
     }
 
     fallback = applyDiversity(fallback)
@@ -176,16 +176,16 @@ export async function getNews(
        a.id, a.title, a.summary, a.image_url, a.url,
        a.source, a.published_at, a.category,
        (
-         0.7 +
-         (CASE WHEN a.category = ANY($3) THEN 0.15 ELSE 0 END) +
-         (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.01)
+         0.6 +
+         (CASE WHEN a.category = ANY($3) THEN 0.2 ELSE 0 END) +
+         (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.015)
        ) AS score
      FROM articles a
      WHERE a.id NOT IN (
          SELECT article_id FROM user_seen WHERE user_id = $1
        )
      ORDER BY score DESC
-     LIMIT 100 OFFSET $2`,
+     LIMIT 120 OFFSET $2`,
     [userId, offset, interests]
   )
 
@@ -197,13 +197,13 @@ export async function getNews(
          a.id, a.title, a.summary, a.image_url, a.url,
          a.source, a.published_at, a.category,
          (
-           0.7 +
-           (CASE WHEN a.category = ANY($3) THEN 0.15 ELSE 0 END) +
-           (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.01)
+           0.6 +
+           (CASE WHEN a.category = ANY($3) THEN 0.2 ELSE 0 END) +
+           (EXTRACT(EPOCH FROM (NOW() - a.published_at)) / 3600 * -0.015)
          ) AS score
        FROM articles a
        ORDER BY score DESC
-       LIMIT 100 OFFSET $2`,
+       LIMIT 120 OFFSET $2`,
       [userId, offset, interests]
     )
     ranked = rankedResult.rows
@@ -222,21 +222,23 @@ export async function getNews(
     return applyDiversity(fallback.rows)
   }
 
-  const personalized = ranked.slice(0, randomBetween(3, 5))
-  const trending = shuffle(ranked.slice(0, 25)).slice(0, randomBetween(2, 4))
+  const freshPool = ranked.slice(0, 20)
+  const personalized = ranked.slice(0, randomBetween(4, 6))
+  const trending = shuffle(ranked.slice(0, 40)).slice(0, randomBetween(3, 4))
 
-  const explorationStart = randomBetween(10, 40)
+  const explorationStart = randomBetween(15, 50)
   const exploration = shuffle(
-    ranked.slice(explorationStart, explorationStart + 30)
-  ).slice(0, randomBetween(1, 3))
+    ranked.slice(explorationStart, explorationStart + 40)
+  ).slice(0, randomBetween(2, 3))
 
-  const freshBoost = shuffle(ranked.slice(0, 10)).slice(0, 2)
+  const surprise = ranked[randomBetween(0, ranked.length - 1)]
 
   let finalFeed = shuffle([
+    ...shuffle(freshPool).slice(0, 3),
     ...personalized,
     ...trending,
     ...exploration,
-    ...freshBoost,
+    surprise,
   ]).slice(0, limit)
 
   if (finalFeed.length < limit) {
