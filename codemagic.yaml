@@ -11,13 +11,20 @@ workflows:
         script: |
           npm install
 
-      - name: Install Expo CLI
+      - name: Install Expo & EAS CLI
         script: |
           npm install -g expo-cli eas-cli
 
+      - name: Verify Expo login
+        script: |
+          echo "Using Expo token..."
+          export EXPO_TOKEN=$EXPO_TOKEN
+          npx expo whoami
+
       - name: Build iOS
         script: |
+          export EXPO_TOKEN=$EXPO_TOKEN
           eas build -p ios --non-interactive
 
     artifacts:
-      - build/*.ipagit 
+      - build/*.ipa
