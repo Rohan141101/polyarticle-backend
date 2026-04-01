@@ -9,27 +9,34 @@
     "android": {
       "usesCleartextTraffic": true,
       "package": "com.anonymous.flashfeed",
-
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-
       "permissions": []
     },
 
+    "ios": {
+      "bundleIdentifier": "com.anonymous.flashfeed",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+
     "plugins": [
-      "expo-secure-store",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-2345974289373242~3123605011"
-        }
-      ]
+      "expo-secure-store"
     ],
 
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+
+    "extra": {
+      "eas": {
+        "projectId": "9ab60785-2236-4a55-96c5-1df3e484d1f8"
+      }
+    },
+
+    "owner": "rohan141101"
   }
 }

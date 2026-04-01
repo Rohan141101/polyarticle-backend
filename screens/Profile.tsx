@@ -13,8 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSettings } from '../context/SettingsContext'
 import { useEffect, useState } from 'react'
 import { Picker } from '@react-native-picker/picker'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { updateLocation, getMe } from '../lib/api'
+import { getSession } from '../lib/session'
 
 type Props = {
   onBack: () => void
@@ -95,47 +95,36 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
   }
 
   const handleChangePassword = () => {
-    Alert.alert('Coming Soon', 'Password change will be available in the next update')
+    Alert.alert('Coming Soon', 'Password change will be available soon')
   }
 
   const handleDeleteAccount = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token')
+    const token = await getSession()
 
-      if (!token) {
-        Alert.alert('Error', 'User session not found')
-        return
-      }
-
-      Alert.alert(
-        'Delete Account',
-        'This will permanently delete your account and all your data. This action cannot be undone.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              const url = `https://polyarticle.com/delete-account?token=${token}`
-
-              try {
-                const supported = await Linking.canOpenURL(url)
-
-                if (supported) {
-                  await Linking.openURL(url)
-                } else {
-                  Alert.alert('Error', 'Cannot open delete page')
-                }
-              } catch {
-                Alert.alert('Error', 'Failed to open delete page')
-              }
-            },
-          },
-        ]
-      )
-    } catch {
-      Alert.alert('Error', 'Something went wrong')
+    if (!token) {
+      Alert.alert('Error', 'User session not found')
+      return
     }
+
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your data.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const url = `https://polyarticle.com/delete-account?token=${token}`
+              await Linking.openURL(url)
+            } catch {
+              Alert.alert('Error', 'Failed to open delete page')
+            }
+          },
+        },
+      ]
+    )
   }
 
   return (
