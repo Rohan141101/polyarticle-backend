@@ -5,6 +5,8 @@ workflows:
 
     environment:
       node: 18
+      groups:
+        - expo
 
     scripts:
       - name: Install dependencies
