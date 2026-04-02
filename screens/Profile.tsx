@@ -127,6 +127,15 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
     )
   }
 
+  // ✅ NEW: Contact handler
+  const handleContactUs = async () => {
+    try {
+      await Linking.openURL('https://polyarticle.com/contact.html')
+    } catch {
+      Alert.alert('Error', 'Failed to open contact page')
+    }
+  }
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]}>
       <View style={styles.topBar}>
@@ -154,6 +163,12 @@ export default function Profile({ onBack, onSessions, onLogout }: Props) {
           <TouchableOpacity onPress={handleDeleteAccount}>
             <Row label="Delete Account" action text="#ff3b30" sub={sub} />
           </TouchableOpacity>
+
+          {/* ✅ NEW: Contact Us button */}
+          <TouchableOpacity onPress={handleContactUs}>
+            <Row label="Contact Us" action text={text} sub={sub} />
+          </TouchableOpacity>
+
         </Section>
 
         <Section title="Preferences" sub={sub} card={card}>
